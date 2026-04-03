@@ -1,25 +1,51 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lobby</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lobby – BattleBox</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <nav class="nav-bar">
+  <span class="nav-brand">⚔️ BattleBox</span>
   <button onclick="window.location.href='index.html'">🏠 Home</button>
 </nav>
 
 <h2>Lobby</h2>
-<h3>Room Code: <span id="roomCode"></span></h3>
-<h4>Game: <span id="gameType"></span></h4>
+
+<div style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+  <div class="room-code-display">
+    <span id="roomCode">—</span>
+    <button class="btn-copy" onclick="copyRoomCode()" title="Copy room code">📋</button>
+  </div>
+  <span class="game-badge" id="gameTypeBadge">⏳ Loading…</span>
+</div>
+
+<p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1rem;">
+  Share the room code with friends to invite them
+</p>
 
 <div id="scoreboard"></div>
 
-<h3>Players:</h3>
-<ul id="playerList"></ul>
+<div style="max-width:480px; margin:0 auto;">
+  <h3 style="text-align:left; padding:0 0.25rem;">Players</h3>
+  <ul id="playerList"></ul>
+</div>
 
-<button id="startBtn" onclick="startGame()" style="display: none;">Start Game (Host Only)</button>
+<div style="margin-top:1.25rem;">
+  <button id="startBtn" onclick="startGame()" class="btn-success" style="display:none;">
+    ▶ Start Game
+  </button>
+  <p id="waitMsg" style="color:var(--text-muted); font-size:0.88rem; margin-top:0.5rem; display:none;">
+    Waiting for the host to start…
+  </p>
+  <p id="minPlayersMsg" style="color:var(--text-muted); font-size:0.82rem; margin-top:0.4rem; display:none;">
+    Need at least 2 players to start
+  </p>
+</div>
+
+<div id="toast-container" role="status" aria-live="polite"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="games.js"></script>
@@ -29,37 +55,85 @@ let room = localStorage.getItem('room');
 let gameType = localStorage.getItem('game');
 let hostId = null;
 let isHost = false;
-document.getElementById('roomCode').innerText = room;
-document.getElementById('gameType').innerText = gameType || 'Unknown';
+let allPlayers = [];
+
+document.getElementById('roomCode').innerText = room || '—';
+setGameBadge(gameType);
 
 let playerName = localStorage.getItem('playerName') || 'Anonymous';
 
+const GAME_ICONS = { reaction: '⚡', tictactoe: '🎯', wordchain: '💬' };
+const GAME_LABELS = { reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain' };
+
+function setGameBadge(game) {
+  const badge = document.getElementById('gameTypeBadge');
+  if (badge && game) {
+    badge.textContent = `${GAME_ICONS[game] || '🎮'} ${GAME_LABELS[game] || game}`;
+  }
+}
+
+function copyRoomCode() {
+  const code = document.getElementById('roomCode').innerText;
+  if (!code || code === '—') return;
+  navigator.clipboard.writeText(code).then(() => {
+    showToast('Room code copied!', 'success', 1800);
+  }).catch(() => {
+    showToast('Code: ' + code, 'info', 3000);
+  });
+}
+
 function updateStartButton() {
   const startBtn = document.getElementById('startBtn');
-  startBtn.style.display = isHost ? 'inline-block' : 'none';
+  const waitMsg = document.getElementById('waitMsg');
+  const minMsg = document.getElementById('minPlayersMsg');
+  if (isHost) {
+    startBtn.style.display = 'inline-flex';
+    waitMsg.style.display = 'none';
+    minMsg.style.display = allPlayers.length < 2 ? 'block' : 'none';
+    startBtn.disabled = allPlayers.length < 2;
+  } else {
+    startBtn.style.display = 'none';
+    waitMsg.style.display = 'block';
+    minMsg.style.display = 'none';
+  }
 }
 
 function renderPlayerList(players) {
+  allPlayers = players;
   const list = document.getElementById('playerList');
   list.innerHTML = '';
   players.forEach(p => {
     const li = document.createElement('li');
     const isCurrentHost = hostId && p.id === hostId;
-    li.innerText = `${p.name}${isCurrentHost ? ' (Host)' : ''} - Score: ${p.score || 0}`;
+    const initials = (p.name || '?').substring(0, 2).toUpperCase();
+    li.innerHTML = `
+      <div class="player-avatar">${initials}</div>
+      <div class="player-info">
+        <div class="player-name">${escapeHtml(p.name)}</div>
+        <div class="player-score-label">Score: ${p.score || 0}</div>
+      </div>
+      ${isCurrentHost ? '<span class="player-badge">👑 Host</span>' : ''}
+    `;
     list.appendChild(li);
   });
-  updateScoreboard(players.reduce((acc, p) => ({...acc, [p.name]: p.score || 0}), {}));
+  updateScoreboard(players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {}));
+  updateStartButton();
 }
 
-socket.on('roomInfo', ({game, hostId: serverHostId, hostName}) => {
-  gameType = game;
-  localStorage.setItem('game', game);
-  document.getElementById('gameType').innerText = game;
-  if (serverHostId) {
-    hostId = serverHostId;
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
+  );
+}
+
+socket.on('roomInfo', ({ game, hostId: serverHostId }) => {
+  if (game) {
+    gameType = game;
+    localStorage.setItem('game', game);
+    setGameBadge(game);
   }
+  if (serverHostId) hostId = serverHostId;
   isHost = socket.id === hostId;
-  document.title = hostName ? `Lobby - ${hostName}` : 'Lobby';
   updateStartButton();
 });
 
@@ -72,19 +146,31 @@ socket.on('updatePlayers', players => {
   renderPlayerList(players);
 });
 
-socket.emit('joinRoom', {room, playerName});
+socket.on('error', msg => {
+  showToast(msg, 'error');
+  if (msg === 'Room not found') {
+    setTimeout(() => window.location.href = 'index.html', 2500);
+  }
+});
+
+socket.emit('joinRoom', { room, playerName });
 
 function startGame() {
   if (!isHost) return;
+  if (allPlayers.length < 2) {
+    showToast('Need at least 2 players to start!', 'warning');
+    return;
+  }
   socket.emit('startGame', room);
 }
 
 socket.on('gameStarted', () => {
-  window.location = 'game.html';
+  window.location.href = 'game.html';
 });
 
-setupGameListeners(); // from games.js
+setupGameListeners();
 </script>
 
 </body>
 </html>
+
