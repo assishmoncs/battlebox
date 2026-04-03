@@ -41,8 +41,8 @@ module.exports = function(roomCode, io, rooms) {
     }, 3000);
   }, waitTime);
 
-  // Clean up timeout reference so it can be cleared on room deletion if needed
-  room.gameState._goTimeout = goTimeout;
+  // Store timeout reference for potential cleanup
+  room.gameState.goTimeoutRef = goTimeout;
 };
 
 function nextReactionRound(roomCode, io, rooms) {

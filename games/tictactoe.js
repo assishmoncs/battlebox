@@ -12,7 +12,6 @@ module.exports = function(roomCode, pos, io, rooms) {
 
   // Check if position is already taken
   if (room.gameState.board[pos] !== null) {
-    const player = room.players.find(p => p.id === /* socket */ room.players[room.gameState.currentTurn]?.id);
     return io.to(roomCode).emit('error', 'That cell is already taken');
   }
 

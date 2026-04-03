@@ -11,6 +11,10 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 
 let rooms = {};
 
+function sanitizeName(name) {
+  return (String(name || '').trim().substring(0, 20)) || 'Anonymous';
+}
+
 function getRoom(roomCode) {
   return rooms[roomCode];
 }
@@ -46,7 +50,7 @@ io.on('connection', (socket) => {
       if (typeof ack === 'function') ack({ ok: false, error: 'Invalid room data' });
       return;
     }
-    const safeName = (playerName || 'Anonymous').trim().substring(0, 20) || 'Anonymous';
+    const safeName = sanitizeName(playerName);
     rooms[roomCode] = {
       game: game || 'reaction',
       host: socket.id,
@@ -68,7 +72,7 @@ io.on('connection', (socket) => {
     if (!room) {
       return socket.emit('error', 'Room not found');
     }
-    const safeName = (playerName || 'Anonymous').trim().substring(0, 20) || 'Anonymous';
+    const safeName = sanitizeName(playerName);
     socket.join(roomCode);
 
     // Check if player already exists (reconnection by name)

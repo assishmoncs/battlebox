@@ -78,8 +78,8 @@ function joinRoom() {
     if (roomInput) roomInput.focus();
     return;
   }
-  if (room.length !== 4) {
-    showToast('Room code must be exactly 4 characters.', 'error');
+  if (room.length !== 4 || !/^[A-Z0-9]{4}$/.test(room)) {
+    showToast('Room code must be exactly 4 alphanumeric characters.', 'error');
     if (roomInput) roomInput.focus();
     return;
   }
