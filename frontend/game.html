@@ -45,8 +45,6 @@ let playerName = localStorage.getItem('playerName') || 'Anonymous';
 initGameUI(gameType);
 setupGameListeners();
 
-socket.emit('joinRoom', { room, playerName });
-
 socket.on('updatePlayers', players => {
   updateScoreboard(players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {}));
 });
