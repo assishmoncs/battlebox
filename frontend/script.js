@@ -55,14 +55,8 @@ function createRoom() {
   const game = document.getElementById('gameSelect').value;
   localStorage.setItem('room', room);
   localStorage.setItem('game', game);
-
-  socket.emit('createRoom', { room, game, playerName: name }, (res) => {
-    if (res && res.ok) {
-      window.location.href = 'lobby.html';
-    } else {
-      showToast((res && res.error) || 'Failed to create room. Try again.', 'error');
-    }
-  });
+  localStorage.setItem('isCreator', '1');
+  window.location.href = 'lobby.html';
 }
 
 // ===== Join Room =====

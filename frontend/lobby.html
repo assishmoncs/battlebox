@@ -51,19 +51,22 @@
 <script src="games.js"></script>
 <script>
 const socket = io();
-let room = localStorage.getItem('room');
+
+const room = localStorage.getItem('room');
+const playerName = localStorage.getItem('playerName') || 'Anonymous';
+const isCreator = localStorage.getItem('isCreator') === '1';
+localStorage.removeItem('isCreator');
+
 let gameType = localStorage.getItem('game');
 let hostId = null;
 let isHost = false;
 let allPlayers = [];
 
+const GAME_ICONS  = { reaction: '⚡', tictactoe: '🎯', wordchain: '💬' };
+const GAME_LABELS = { reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain' };
+
 document.getElementById('roomCode').innerText = room || '—';
 setGameBadge(gameType);
-
-let playerName = localStorage.getItem('playerName') || 'Anonymous';
-
-const GAME_ICONS = { reaction: '⚡', tictactoe: '🎯', wordchain: '💬' };
-const GAME_LABELS = { reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain' };
 
 function setGameBadge(game) {
   const badge = document.getElementById('gameTypeBadge');
@@ -84,17 +87,17 @@ function copyRoomCode() {
 
 function updateStartButton() {
   const startBtn = document.getElementById('startBtn');
-  const waitMsg = document.getElementById('waitMsg');
-  const minMsg = document.getElementById('minPlayersMsg');
+  const waitMsg  = document.getElementById('waitMsg');
+  const minMsg   = document.getElementById('minPlayersMsg');
   if (isHost) {
     startBtn.style.display = 'inline-flex';
-    waitMsg.style.display = 'none';
-    minMsg.style.display = allPlayers.length < 2 ? 'block' : 'none';
-    startBtn.disabled = allPlayers.length < 2;
+    waitMsg.style.display  = 'none';
+    minMsg.style.display   = allPlayers.length < 2 ? 'block' : 'none';
+    startBtn.disabled      = allPlayers.length < 2;
   } else {
     startBtn.style.display = 'none';
-    waitMsg.style.display = 'block';
-    minMsg.style.display = 'none';
+    waitMsg.style.display  = 'block';
+    minMsg.style.display   = 'none';
   }
 }
 
@@ -109,10 +112,9 @@ function renderPlayerList(players) {
     li.innerHTML = `
       <div class="player-avatar">${initials}</div>
       <div class="player-info">
-        <div class="player-name">${escapeHtml(p.name)}</div>
+        <div class="player-name">${escapeHtml(p.name)}${isCurrentHost ? ' <span class="player-badge">👑 Host</span>' : ''}</div>
         <div class="player-score-label">Score: ${p.score || 0}</div>
       </div>
-      ${isCurrentHost ? '<span class="player-badge">👑 Host</span>' : ''}
     `;
     list.appendChild(li);
   });
@@ -120,11 +122,43 @@ function renderPlayerList(players) {
   updateStartButton();
 }
 
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, c =>
-    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
-  );
+function startGame() {
+  if (!isHost) return;
+  if (allPlayers.length < 2) {
+    showToast('Need at least 2 players to start!', 'warning');
+    return;
+  }
+  socket.emit('startGame', room);
 }
+
+// ===== Socket events =====
+
+let initialConnectDone = false;
+
+socket.on('connect', () => {
+  if (!room) {
+    showToast('No room found. Redirecting…', 'error');
+    setTimeout(() => window.location.href = 'index.html', 1500);
+    return;
+  }
+  if (!initialConnectDone && isCreator) {
+    initialConnectDone = true;
+    socket.emit('createRoom', { room, game: gameType, playerName }, (res) => {
+      if (!res || !res.ok) {
+        showToast((res && res.error) || 'Failed to create room.', 'error');
+        setTimeout(() => window.location.href = 'index.html', 2500);
+      }
+    });
+  } else {
+    initialConnectDone = true;
+    socket.emit('joinRoom', { room, playerName });
+  }
+});
+
+socket.on('youAreHost', () => {
+  isHost = true;
+  updateStartButton();
+});
 
 socket.on('roomInfo', ({ game, hostId: serverHostId }) => {
   if (game) {
@@ -137,32 +171,9 @@ socket.on('roomInfo', ({ game, hostId: serverHostId }) => {
   updateStartButton();
 });
 
-socket.on('youAreHost', () => {
-  isHost = true;
-  updateStartButton();
-});
-
 socket.on('updatePlayers', players => {
   renderPlayerList(players);
 });
-
-socket.on('error', msg => {
-  showToast(msg, 'error');
-  if (msg === 'Room not found') {
-    setTimeout(() => window.location.href = 'index.html', 2500);
-  }
-});
-
-socket.emit('joinRoom', { room, playerName });
-
-function startGame() {
-  if (!isHost) return;
-  if (allPlayers.length < 2) {
-    showToast('Need at least 2 players to start!', 'warning');
-    return;
-  }
-  socket.emit('startGame', room);
-}
 
 socket.on('gameStarted', () => {
   window.location.href = 'game.html';

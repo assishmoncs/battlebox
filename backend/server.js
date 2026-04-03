@@ -27,12 +27,13 @@ function updateAllInRoom(roomCode) {
   const room = getRoom(roomCode);
   if (!room) return;
   const host = room.players.find(p => p.id === room.host);
-  io.to(roomCode).emit('updatePlayers', room.players);
+  // Emit roomInfo first so clients have hostId before rendering the player list
   io.to(roomCode).emit('roomInfo', {
     game: room.game,
     hostId: room.host,
     hostName: host ? host.name : null
   });
+  io.to(roomCode).emit('updatePlayers', room.players);
 }
 
 // Load game modules
@@ -60,11 +61,11 @@ io.on('connection', (socket) => {
     };
     socket.join(roomCode);
     socket.emit('youAreHost', true);
-    io.to(roomCode).emit('roomInfo', { game: game || 'reaction', hostId: socket.id, hostName: safeName });
     if (typeof ack === 'function') {
       ack({ ok: true, room: roomCode });
     }
     console.log('Room created:', roomCode, game, 'by', safeName);
+    updateAllInRoom(roomCode);
   });
 
   socket.on('joinRoom', ({ room: roomCode, playerName }) => {
@@ -96,12 +97,6 @@ io.on('connection', (socket) => {
     if (socket.id === room.host) {
       socket.emit('youAreHost', true);
     }
-
-    io.to(roomCode).emit('roomInfo', {
-      game: room.game,
-      hostId: room.host,
-      hostName: room.players.find(p => p.id === room.host)?.name || null
-    });
 
     // Send current game state to reconnecting/new player
     if (room.state === 'playing') {
