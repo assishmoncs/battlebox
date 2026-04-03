@@ -10,6 +10,8 @@ const io = new Server(server);
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 let rooms = {};
+const disconnectTimers = {};
+const RECONNECTION_GRACE_PERIOD_MS = 15000;
 
 function sanitizeName(name) {
   return (String(name || '').trim().substring(0, 20)) || 'Anonymous';
@@ -79,6 +81,11 @@ io.on('connection', (socket) => {
     // Check if player already exists (reconnection by name)
     const existingPlayer = room.players.find(p => p.name === safeName);
     if (existingPlayer) {
+      // Cancel any pending removal from a recent disconnect
+      if (disconnectTimers[existingPlayer.id]) {
+        clearTimeout(disconnectTimers[existingPlayer.id]);
+        delete disconnectTimers[existingPlayer.id];
+      }
       if (existingPlayer.id === room.host) {
         room.host = socket.id;
       }
@@ -198,32 +205,43 @@ io.on('connection', (socket) => {
       const wasInRoom = room.players.some(p => p.id === socket.id);
       if (!wasInRoom) continue;
 
-      room.players = room.players.filter(p => p.id !== socket.id);
+      // Give the player a grace period to reconnect (e.g. navigating lobby → game)
+      // before actually removing them and potentially ending the game.
+      const leavingId = socket.id;
+      disconnectTimers[leavingId] = setTimeout(() => {
+        delete disconnectTimers[leavingId];
+        const r = getRoom(roomCode);
+        if (!r) return;
+        // If the player already reconnected their id will have changed; skip removal.
+        if (!r.players.some(p => p.id === leavingId)) return;
 
-      if (room.players.length === 0) {
-        delete rooms[roomCode];
-        continue;
-      }
+        r.players = r.players.filter(p => p.id !== leavingId);
 
-      // Reassign host if needed
-      if (room.host === socket.id) {
-        room.host = room.players[0].id;
-        io.to(roomCode).emit('roomInfo', {
-          game: room.game,
-          hostId: room.host,
-          hostName: room.players[0].name
-        });
-        io.to(room.host).emit('youAreHost', true);
-      }
+        if (r.players.length === 0) {
+          delete rooms[roomCode];
+          return;
+        }
 
-      // End game if not enough players remain
-      if (room.state === 'playing' && room.players.length < 2) {
-        room.state = 'lobby';
-        room.gameState = {};
-        io.to(roomCode).emit('gameOver', { winner: `${room.players[0]?.name || 'Remaining player'} wins (opponent left)` });
-      }
+        // Reassign host if needed
+        if (r.host === leavingId) {
+          r.host = r.players[0].id;
+          io.to(roomCode).emit('roomInfo', {
+            game: r.game,
+            hostId: r.host,
+            hostName: r.players[0].name
+          });
+          io.to(r.host).emit('youAreHost', true);
+        }
 
-      updateAllInRoom(roomCode);
+        // End game if not enough players remain
+        if (r.state === 'playing' && r.players.length < 2) {
+          r.state = 'lobby';
+          r.gameState = {};
+          io.to(roomCode).emit('gameOver', { winner: `${r.players[0]?.name || 'Remaining player'} wins (opponent left)` });
+        }
+
+        updateAllInRoom(roomCode);
+      }, RECONNECTION_GRACE_PERIOD_MS); // grace period for reconnection
     }
   });
 });
