@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>BattleBox</title>\n<link rel="stylesheet" href="style.css">\n</head>
+<body>
+<h1>BattleBox</h1>
+
+<div>
+  <label>Select Game:</label>
+  <select id="gameSelect">
+    <option value="reaction">Reaction Battle</option>
+    <option value="tictactoe">Tic Tac Toe</option>
+    <option value="wordchain">Word Chain</option>
+  </select>
+</div>
+
+<button onclick="createRoom()">Create Room</button>
+<br><br>
+
+<input id="roomInput" placeholder="Room Code">
+<button onclick="joinRoom()">Join Room</button>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

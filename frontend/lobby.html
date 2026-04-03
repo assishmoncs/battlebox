@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lobby</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="nav-bar">
+  <button onclick="window.location.href='index.html'">🏠 Home</button>
+</nav>
+
+<h2>Lobby</h2>
+<h3>Room Code: <span id="roomCode"></span></h3>
+<h4>Game: <span id="gameType"></span></h4>
+
+<div id="scoreboard"></div>
+
+<h3>Players:</h3>
+<ul id="playerList"></ul>
+
+<button id="startBtn" onclick="startGame()" style="display: none;">Start Game (Host Only)</button>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="games.js"></script>
+<script>
+const socket = io();
+let room = localStorage.getItem('room');
+let gameType = localStorage.getItem('game');
+let hostId = null;
+let isHost = false;
+document.getElementById('roomCode').innerText = room;
+document.getElementById('gameType').innerText = gameType || 'Unknown';
+
+let playerName = localStorage.getItem('playerName') || 'Anonymous';
+
+function updateStartButton() {
+  const startBtn = document.getElementById('startBtn');
+  startBtn.style.display = isHost ? 'inline-block' : 'none';
+}
+
+function renderPlayerList(players) {
+  const list = document.getElementById('playerList');
+  list.innerHTML = '';
+  players.forEach(p => {
+    const li = document.createElement('li');
+    const isCurrentHost = hostId && p.id === hostId;
+    li.innerText = `${p.name}${isCurrentHost ? ' (Host)' : ''} - Score: ${p.score || 0}`;
+    list.appendChild(li);
+  });
+  updateScoreboard(players.reduce((acc, p) => ({...acc, [p.name]: p.score || 0}), {}));
+}
+
+socket.on('roomInfo', ({game, hostId: serverHostId, hostName}) => {
+  gameType = game;
+  localStorage.setItem('game', game);
+  document.getElementById('gameType').innerText = game;
+  if (serverHostId) {
+    hostId = serverHostId;
+  }
+  isHost = socket.id === hostId;
+  document.title = hostName ? `Lobby - ${hostName}` : 'Lobby';
+  updateStartButton();
+});
+
+socket.on('youAreHost', () => {
+  isHost = true;
+  updateStartButton();
+});
+
+socket.on('updatePlayers', players => {
+  renderPlayerList(players);
+});
+
+socket.emit('joinRoom', {room, playerName});
+
+function startGame() {
+  if (!isHost) return;
+  socket.emit('startGame', room);
+}
+
+socket.on('gameStarted', () => {
+  window.location = 'game.html';
+});
+
+setupGameListeners(); // from games.js
+</script>
+
+</body>
+</html>
