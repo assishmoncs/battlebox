@@ -1,25 +1,65 @@
 <!DOCTYPE html>
-<html>
-<head>\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>BattleBox</title>\n<link rel="stylesheet" href="style.css">\n</head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BattleBox</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 <body>
-<h1>BattleBox</h1>
 
-<div>
-  <label>Select Game:</label>
-  <select id="gameSelect">
-    <option value="reaction">Reaction Battle</option>
-    <option value="tictactoe">Tic Tac Toe</option>
-    <option value="wordchain">Word Chain</option>
-  </select>
+<div class="hero">
+  <h1>⚔️ BattleBox</h1>
+  <p class="hero-subtitle">Real-time multiplayer mini-games</p>
 </div>
 
-<button onclick="createRoom()">Create Room</button>
-<br><br>
+<div class="card">
+  <div class="form-group">
+    <label for="nameInput">Your Name</label>
+    <input id="nameInput" placeholder="Enter your name" maxlength="20" autocomplete="off" autocapitalize="words">
+  </div>
 
-<input id="roomInput" placeholder="Room Code">
-<button onclick="joinRoom()">Join Room</button>
+  <div class="form-group">
+    <label>Choose a Game</label>
+    <div class="game-select-grid" id="gameSelectGrid">
+      <div class="game-option selected" data-value="reaction" onclick="selectGame(this)">
+        <span class="game-icon">⚡</span>
+        <span class="game-name">Reaction Battle</span>
+      </div>
+      <div class="game-option" data-value="tictactoe" onclick="selectGame(this)">
+        <span class="game-icon">🎯</span>
+        <span class="game-name">Tic Tac Toe</span>
+      </div>
+      <div class="game-option" data-value="wordchain" onclick="selectGame(this)">
+        <span class="game-icon">💬</span>
+        <span class="game-name">Word Chain</span>
+      </div>
+    </div>
+    <input type="hidden" id="gameSelect" value="reaction">
+  </div>
+
+  <button onclick="createRoom()" class="btn-success" style="width: 100%; margin-bottom: 0.5rem;">
+    🚀 Create Room
+  </button>
+
+  <div class="divider">or join an existing room</div>
+
+  <div class="form-group">
+    <label for="roomInput">Room Code</label>
+    <div class="form-row">
+      <input id="roomInput" placeholder="e.g. AB12" maxlength="4"
+        style="text-transform: uppercase; letter-spacing: 3px; font-weight: 700;"
+        oninput="this.value = this.value.toUpperCase()"
+        onkeypress="if(event.key==='Enter') joinRoom()">
+      <button onclick="joinRoom()">Join →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
+

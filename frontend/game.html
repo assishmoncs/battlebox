@@ -1,22 +1,30 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Game</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game – BattleBox</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <nav class="nav-bar">
-  <button onclick="window.location.href='lobby.html'">← Back to Lobby</button>
+  <span class="nav-brand">⚔️ BattleBox</span>
+  <button onclick="window.location.href='lobby.html'">← Lobby</button>
 </nav>
+
 <h2 id="gameTitle">Game</h2>
-<h3>Room: <span id="roomCode"></span> | Game: <span id="gameType"></span></h3>
+
+<div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+  <span class="game-badge" id="roomBadge">🏠 —</span>
+</div>
 
 <div id="scoreboard"></div>
 
 <div id="gameContainer"></div>
 
-<h3 id="status">Loading...</h3>
+<div id="status" class="waiting">Loading…</div>
+
+<div id="toast-container"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="games.js"></script>
@@ -25,22 +33,35 @@ const socket = io();
 let room = localStorage.getItem('room');
 let gameType = localStorage.getItem('game') || 'reaction';
 
-document.getElementById('roomCode').innerText = room;
-document.getElementById('gameType').innerText = gameType;
-document.getElementById('gameTitle').innerText = gameType.charAt(0).toUpperCase() + gameType.replace('tictactoe','Tic Tac Toe').replace('wordchain','Word Chain').slice(1) + ' Battle';
+const GAME_LABELS = { reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain' };
+const GAME_ICONS  = { reaction: '⚡', tictactoe: '🎯', wordchain: '💬' };
+
+document.getElementById('roomBadge').textContent = `🏠 Room: ${room || '—'}`;
+document.getElementById('gameTitle').textContent = `${GAME_ICONS[gameType] || '🎮'} ${GAME_LABELS[gameType] || gameType}`;
+document.title = `${GAME_LABELS[gameType] || 'Game'} – BattleBox`;
 
 let playerName = localStorage.getItem('playerName') || 'Anonymous';
 
 initGameUI(gameType);
-
 setupGameListeners();
 
-socket.emit('joinRoom', {room, playerName});
+socket.emit('joinRoom', { room, playerName });
 
 socket.on('updatePlayers', players => {
-  updateScoreboard(players.reduce((acc, p) => ({...acc, [p.name]: p.score || 0}), {}));
+  updateScoreboard(players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {}));
+});
+
+socket.on('disconnect', () => {
+  showToast('Disconnected from server. Trying to reconnect…', 'warning', 5000);
+});
+
+socket.on('connect', () => {
+  if (room && playerName) {
+    socket.emit('joinRoom', { room, playerName });
+  }
 });
 </script>
 
 </body>
 </html>
+
