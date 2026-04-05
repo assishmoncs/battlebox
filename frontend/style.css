@@ -277,7 +277,7 @@ select option { background: #1a1a2e; color: var(--text); }
 /* ===== Game Selection Cards ===== */
 .game-select-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.6rem;
   margin: 0.5rem 0;
 }
@@ -615,6 +615,49 @@ li:hover {
   animation: pop 0.3s ease;
 }
 
+/* ===== Generic Interactive Game Inputs ===== */
+.game-input-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.9rem auto;
+  max-width: 400px;
+}
+
+.game-input-row input {
+  flex: 1;
+  max-width: none;
+  margin: 0;
+}
+
+.game-input-row button {
+  min-height: 48px;
+  flex-shrink: 0;
+}
+
+.prompt-card {
+  margin: 0.75rem auto;
+  max-width: 420px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 1rem auto;
+  max-width: 420px;
+}
+
+.choice-btn {
+  min-height: 54px;
+  font-size: 0.95rem;
+}
+
 /* ===== Status Messages ===== */
 #status, #reactionStatus, #tttStatus, #wordStatus {
   font-size: clamp(0.95rem, 3.5vw, 1.2rem);
@@ -765,7 +808,12 @@ li:hover {
   .word-chain-input { flex-direction: column; }
   .word-chain-input button { width: 100%; max-width: none; }
 
-  .game-select-grid { grid-template-columns: repeat(3, 1fr); }
+  .game-select-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .game-input-row { flex-direction: column; }
+  .game-input-row button { width: 100%; max-width: none; }
+
+  .choice-grid { grid-template-columns: 1fr; }
 
   #toast-container { right: 0.5rem; max-width: calc(100vw - 1rem); }
 }
@@ -774,4 +822,3 @@ li:hover {
   body { padding-top: 60px; }
   #gameContainer { max-height: 80vh; overflow: auto; }
 }
-

@@ -76,6 +76,72 @@ function initGameUI(gameType) {
         });
       }
       break;
+
+    case 'mathduel':
+      gameContainer.innerHTML = `
+        <div id="mathduelGame">
+          <div id="mathPrompt" class="prompt-card">Waiting for question…</div>
+          <div class="game-input-row">
+            <input id="mathAnswerInput" type="number" placeholder="Your answer" autocomplete="off">
+            <button id="mathAnswerBtn" onclick="submitMathAnswer()">Submit</button>
+          </div>
+          <div id="mathStatus" class="waiting">Waiting for game to start…</div>
+        </div>
+      `;
+      {
+        const el = document.getElementById('mathAnswerInput');
+        if (el) el.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitMathAnswer(); });
+      }
+      break;
+
+    case 'rpsarena':
+      gameContainer.innerHTML = `
+        <div id="rpsarenaGame">
+          <div class="choice-grid">
+            <button class="choice-btn" id="rps-rock" onclick="submitRpsChoice('rock')">🪨 Rock</button>
+            <button class="choice-btn" id="rps-paper" onclick="submitRpsChoice('paper')">📄 Paper</button>
+            <button class="choice-btn" id="rps-scissors" onclick="submitRpsChoice('scissors')">✂️ Scissors</button>
+          </div>
+          <div id="rpsStatus" class="waiting">Waiting for game to start…</div>
+        </div>
+      `;
+      break;
+
+    case 'anagram':
+      gameContainer.innerHTML = `
+        <div id="anagramGame">
+          <div id="anagramPrompt" class="prompt-card">Waiting for puzzle…</div>
+          <div class="game-input-row">
+            <input id="anagramInput" placeholder="Unscrambled word" maxlength="30" autocomplete="off" autocapitalize="none">
+            <button id="anagramBtn" onclick="submitAnagram()">Submit</button>
+          </div>
+          <div id="anagramStatus" class="waiting">Waiting for game to start…</div>
+        </div>
+      `;
+      {
+        const el = document.getElementById('anagramInput');
+        if (el) el.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitAnagram(); });
+      }
+      break;
+
+    case 'numberhunt':
+      gameContainer.innerHTML = `
+        <div id="numberhuntGame">
+          <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:0.5rem;">
+            Guess a number between 10 and 30.
+          </p>
+          <div class="game-input-row">
+            <input id="numberGuessInput" type="number" min="10" max="30" placeholder="10 - 30" autocomplete="off">
+            <button id="numberGuessBtn" onclick="submitNumberGuess()">Submit</button>
+          </div>
+          <div id="numberStatus" class="waiting">Waiting for game to start…</div>
+        </div>
+      `;
+      {
+        const el = document.getElementById('numberGuessInput');
+        if (el) el.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitNumberGuess(); });
+      }
+      break;
   }
 }
 
@@ -134,6 +200,38 @@ function submitWord() {
   wordInput.focus();
 }
 
+function submitMathAnswer() {
+  const input = document.getElementById('mathAnswerInput');
+  if (!input) return;
+  const answer = input.value.trim();
+  if (answer === '') return showToast('Enter your answer first', 'warning');
+  socket.emit('gameMove', { room: localStorage.getItem('room'), answer: Number(answer) });
+  input.value = '';
+}
+
+function submitRpsChoice(choice) {
+  socket.emit('gameMove', { room: localStorage.getItem('room'), choice });
+}
+
+function submitAnagram() {
+  const input = document.getElementById('anagramInput');
+  if (!input) return;
+  const guess = input.value.trim().toLowerCase();
+  if (!guess) return showToast('Type your guess first', 'warning');
+  socket.emit('gameMove', { room: localStorage.getItem('room'), word: guess });
+  input.value = '';
+}
+
+function submitNumberGuess() {
+  const input = document.getElementById('numberGuessInput');
+  if (!input) return;
+  const guess = Number(input.value);
+  if (!Number.isInteger(guess) || guess < 10 || guess > 30) {
+    return showToast('Guess must be an integer from 10 to 30', 'warning');
+  }
+  socket.emit('gameMove', { room: localStorage.getItem('room'), guess });
+}
+
 function updateWordChain(gameState) {
   const chainHistory = document.getElementById('chainHistory');
   if (chainHistory && gameState.chain && gameState.chain.length > 0) {
@@ -179,6 +277,10 @@ function setupGameListeners() {
       document.getElementById('reactionStatus') ||
       document.getElementById('tttStatus') ||
       document.getElementById('wordStatus') ||
+      document.getElementById('mathStatus') ||
+      document.getElementById('rpsStatus') ||
+      document.getElementById('anagramStatus') ||
+      document.getElementById('numberStatus') ||
       document.getElementById('status');
 
     if (statusEl && state.status !== undefined) {
@@ -199,7 +301,7 @@ function setupGameListeners() {
 
       if (yourTurn) {
         statusEl.classList.add('your-turn');
-      } else if (state.currentPlayerId || isGo === false) {
+      } else if (state.currentPlayerId) {
         statusEl.classList.add('opponent-turn');
       } else {
         statusEl.classList.add('waiting');
@@ -231,6 +333,50 @@ function setupGameListeners() {
       if (submitBtn) submitBtn.disabled = !myTurn;
     }
 
+    if (currentGame === 'mathduel' && state.gameState) {
+      const prompt = document.getElementById('mathPrompt');
+      if (prompt && state.gameState.prompt) {
+        prompt.textContent = `Solve: ${state.gameState.prompt}`;
+      }
+      const input = document.getElementById('mathAnswerInput');
+      const btn = document.getElementById('mathAnswerBtn');
+      const myTurn = state.currentPlayerId === socket.id;
+      if (input) input.disabled = !myTurn;
+      if (btn) btn.disabled = !myTurn;
+      if (myTurn && input) input.focus();
+    }
+
+    if (currentGame === 'rpsarena') {
+      const choices = state.gameState && state.gameState.choices ? state.gameState.choices : {};
+      const locked = !!choices[socket.id];
+      ['rps-rock', 'rps-paper', 'rps-scissors'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = locked;
+      });
+    }
+
+    if (currentGame === 'anagram' && state.gameState) {
+      const prompt = document.getElementById('anagramPrompt');
+      if (prompt && state.gameState.scrambled) {
+        prompt.textContent = `Unscramble: ${state.gameState.scrambled}`;
+      }
+      const input = document.getElementById('anagramInput');
+      const btn = document.getElementById('anagramBtn');
+      const myTurn = state.currentPlayerId === socket.id;
+      if (input) input.disabled = !myTurn;
+      if (btn) btn.disabled = !myTurn;
+      if (myTurn && input) input.focus();
+    }
+
+    if (currentGame === 'numberhunt' && state.gameState) {
+      const input = document.getElementById('numberGuessInput');
+      const btn = document.getElementById('numberGuessBtn');
+      const guesses = state.gameState.guesses || {};
+      const locked = guesses[socket.id] !== undefined;
+      if (input) input.disabled = locked;
+      if (btn) btn.disabled = locked;
+    }
+
     // Scoreboard
     if (state.scores) updateScoreboard(state.scores);
   });
@@ -251,6 +397,10 @@ function setupGameListeners() {
       document.getElementById('reactionStatus') ||
       document.getElementById('tttStatus') ||
       document.getElementById('wordStatus') ||
+      document.getElementById('mathStatus') ||
+      document.getElementById('rpsStatus') ||
+      document.getElementById('anagramStatus') ||
+      document.getElementById('numberStatus') ||
       document.getElementById('status');
     if (statusEl) {
       statusEl.textContent = msg;
@@ -262,5 +412,4 @@ function setupGameListeners() {
     }
   });
 }
-
 
