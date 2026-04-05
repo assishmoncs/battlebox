@@ -17,6 +17,15 @@ function buildScores(room) {
   return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {});
 }
 
+function shuffleArray(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 function finalizeGame(roomCode, io, room) {
   const winner = room.players.reduce((best, p) => p.score > best.score ? p : best, room.players[0]);
   io.to(roomCode).emit('updateGameState', {
@@ -35,11 +44,17 @@ module.exports = function(roomCode, io, rooms, answer) {
   if (!room || room.state !== 'playing') return;
 
   if (!room.gameState.questions) {
-    room.gameState.questions = QUESTIONS.sort(() => Math.random() - 0.5).slice(0, room.gameState.maxTurns || 12);
+    room.gameState.questions = shuffleArray(QUESTIONS).slice(0, room.gameState.maxTurns || 12);
+  }
+  if (!room.gameState.questions.length) {
+    io.to(roomCode).emit('gameOver', { winner: 'No questions available' });
+    room.gameState = {};
+    room.state = 'lobby';
+    return;
   }
 
   const turn = room.gameState.turn || 1;
-  const maxTurns = room.gameState.maxTurns || 12;
+  const maxTurns = Math.min(room.gameState.maxTurns || 12, QUESTIONS.length);
   const currentIdx = room.gameState.currentPlayer || 0;
   const currentPlayer = room.players[currentIdx];
   if (!currentPlayer) return;
@@ -88,13 +103,17 @@ module.exports = function(roomCode, io, rooms, answer) {
 
   const nextPlayer = room.players[room.gameState.currentPlayer];
   const nextQuestion = room.gameState.questions[nextTurn - 1];
+  const resultLabel = numericAnswer === currentQuestion.a ? '✅ Correct' : '❌ Wrong';
+  const answerReveal = `(${currentQuestion.q} = ${currentQuestion.a})`;
+  const nextPrompt = `${nextPlayer.name}'s turn — solve: ${nextQuestion ? nextQuestion.q : ''}`;
+
   io.to(roomCode).emit('updateGameState', {
     gameState: {
       ...room.gameState,
       prompt: nextQuestion ? nextQuestion.q : null
     },
     scores: buildScores(room),
-    status: `${numericAnswer === currentQuestion.a ? '✅ Correct' : '❌ Wrong'} (${currentQuestion.q} = ${currentQuestion.a}). ${nextPlayer.name}'s turn — solve: ${nextQuestion ? nextQuestion.q : ''}`,
+    status: `${resultLabel} ${answerReveal}. ${nextPrompt}`,
     currentPlayerId: nextPlayer.id
   });
 };

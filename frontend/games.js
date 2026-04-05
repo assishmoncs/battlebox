@@ -218,7 +218,7 @@ function submitAnagram() {
   if (!input) return;
   const guess = input.value.trim().toLowerCase();
   if (!guess) return showToast('Type your guess first', 'warning');
-  socket.emit('gameMove', { room: localStorage.getItem('room'), word: guess });
+  socket.emit('gameMove', { room: localStorage.getItem('room'), guess });
   input.value = '';
 }
 
@@ -412,4 +412,3 @@ function setupGameListeners() {
     }
   });
 }
-

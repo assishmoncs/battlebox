@@ -231,7 +231,7 @@ io.on('connection', (socket) => {
         if (room.players[room.gameState.currentPlayer || 0]?.id !== socket.id) {
           return socket.emit('error', 'Not your turn');
         }
-        gameModules.anagram(roomCode, io, rooms, word);
+        gameModules.anagram(roomCode, io, rooms, guess);
         break;
       case 'numberhunt':
         gameModules.numberhunt(roomCode, io, rooms, { playerId: socket.id, guess });

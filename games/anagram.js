@@ -4,16 +4,43 @@ const WORDS = [
 ];
 
 function shuffleWord(word) {
-  const arr = word.split('');
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+  if (word.length < 2) return word;
+  if (new Set(word).size < 2) return word;
+
+  let out = word;
+  for (let attempts = 0; attempts < 8 && out === word; attempts++) {
+    const arr = word.split('');
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    out = arr.join('');
   }
-  return arr.join('');
+
+  if (out === word) {
+    const arr = word.split('');
+    let i = 0;
+    while (i + 1 < arr.length && arr[i] === arr[i + 1]) i++;
+    if (i + 1 < arr.length) {
+      [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
+      out = arr.join('');
+    }
+  }
+
+  return out;
 }
 
 function buildScores(room) {
   return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {});
+}
+
+function shuffleArray(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 module.exports = function(roomCode, io, rooms, guess) {
@@ -25,7 +52,7 @@ module.exports = function(roomCode, io, rooms, guess) {
   room.gameState.currentPlayer = room.gameState.currentPlayer || 0;
 
   if (!room.gameState.roundWords) {
-    room.gameState.roundWords = WORDS.sort(() => Math.random() - 0.5).slice(0, room.gameState.maxRounds);
+    room.gameState.roundWords = shuffleArray(WORDS).slice(0, room.gameState.maxRounds);
   }
 
   const currentIdx = room.gameState.currentPlayer;

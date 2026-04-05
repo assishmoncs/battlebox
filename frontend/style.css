@@ -277,7 +277,7 @@ select option { background: #1a1a2e; color: var(--text); }
 /* ===== Game Selection Cards ===== */
 .game-select-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 0.6rem;
   margin: 0.5rem 0;
 }
@@ -808,7 +808,7 @@ li:hover {
   .word-chain-input { flex-direction: column; }
   .word-chain-input button { width: 100%; max-width: none; }
 
-  .game-select-grid { grid-template-columns: repeat(2, 1fr); }
+  .game-select-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 
   .game-input-row { flex-direction: column; }
   .game-input-row button { width: 100%; max-width: none; }
