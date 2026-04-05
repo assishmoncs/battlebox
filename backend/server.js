@@ -42,7 +42,11 @@ function updateAllInRoom(roomCode) {
 const gameModules = {
   reaction: require('../games/reaction.js'),
   tictactoe: require('../games/tictactoe.js'),
-  wordchain: require('../games/wordchain.js')
+  wordchain: require('../games/wordchain.js'),
+  mathduel: require('../games/mathduel.js'),
+  rpsarena: require('../games/rpsarena.js'),
+  anagram: require('../games/anagram.js'),
+  numberhunt: require('../games/numberhunt.js')
 };
 
 io.on('connection', (socket) => {
@@ -157,6 +161,26 @@ io.on('connection', (socket) => {
         });
         break;
       }
+      case 'mathduel': {
+        room.gameState = { currentPlayer: 0, turn: 1, maxTurns: 12 };
+        gameModules.mathduel(roomCode, io, rooms);
+        break;
+      }
+      case 'rpsarena': {
+        room.gameState = { round: 1, maxRounds: 5, choices: {} };
+        gameModules.rpsarena(roomCode, io, rooms);
+        break;
+      }
+      case 'anagram': {
+        room.gameState = { currentPlayer: 0, round: 1, maxRounds: 10 };
+        gameModules.anagram(roomCode, io, rooms);
+        break;
+      }
+      case 'numberhunt': {
+        room.gameState = { round: 1, maxRounds: 6, guesses: {}, target: null };
+        gameModules.numberhunt(roomCode, io, rooms);
+        break;
+      }
     }
     updateAllInRoom(roomCode);
   });
@@ -177,22 +201,40 @@ io.on('connection', (socket) => {
     setTimeout(() => gameModules.reaction(roomCode, io, rooms), 2000);
   });
 
-  socket.on('gameMove', ({ room: roomCode, pos, word }) => {
+  socket.on('gameMove', ({ room: roomCode, pos, word, answer, choice, guess }) => {
     const room = getRoom(roomCode);
     if (!room) return socket.emit('error', 'Room not found');
     if (room.state !== 'playing') return socket.emit('error', 'Game is not active');
-    const currentIndex = 'currentTurn' in room.gameState
-      ? room.gameState.currentTurn
-      : room.gameState.currentPlayer || 0;
-    if (room.players[currentIndex]?.id !== socket.id) {
-      return socket.emit('error', 'Not your turn');
-    }
     switch (room.game) {
       case 'tictactoe':
+        if (room.players[room.gameState.currentTurn || 0]?.id !== socket.id) {
+          return socket.emit('error', 'Not your turn');
+        }
         gameModules.tictactoe(roomCode, pos, io, rooms);
         break;
       case 'wordchain':
+        if (room.players[room.gameState.currentPlayer || 0]?.id !== socket.id) {
+          return socket.emit('error', 'Not your turn');
+        }
         gameModules.wordchain(roomCode, word, io, rooms);
+        break;
+      case 'mathduel':
+        if (room.players[room.gameState.currentPlayer || 0]?.id !== socket.id) {
+          return socket.emit('error', 'Not your turn');
+        }
+        gameModules.mathduel(roomCode, io, rooms, answer);
+        break;
+      case 'rpsarena':
+        gameModules.rpsarena(roomCode, io, rooms, { playerId: socket.id, choice });
+        break;
+      case 'anagram':
+        if (room.players[room.gameState.currentPlayer || 0]?.id !== socket.id) {
+          return socket.emit('error', 'Not your turn');
+        }
+        gameModules.anagram(roomCode, io, rooms, guess);
+        break;
+      case 'numberhunt':
+        gameModules.numberhunt(roomCode, io, rooms, { playerId: socket.id, guess });
         break;
     }
   });
@@ -249,4 +291,3 @@ io.on('connection', (socket) => {
 server.listen(3000, () => {
   console.log('Server running on http://localhost:3000');
 });
-
