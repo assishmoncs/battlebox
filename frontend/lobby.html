@@ -3,46 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lobby – BattleBox</title>
+  <title>Lobby - BattleBox</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
 <body>
 <nav class="nav-bar">
-  <span class="nav-brand">⚔️ BattleBox</span>
-  <button onclick="window.location.href='index.html'">🏠 Home</button>
+  <span class="nav-brand">BattleBox</span>
+  <button onclick="leaveRoom()">Leave</button>
 </nav>
 
-<h2>Lobby</h2>
-
-<div style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.5rem;">
-  <div class="room-code-display">
-    <span id="roomCode">—</span>
-    <button class="btn-copy" onclick="copyRoomCode()" title="Copy room code">📋</button>
+<div class="container">
+  <div class="hero" style="padding: 1rem 0;">
+    <h2 style="font-size: 1.8rem;">BATTLE LOBBY</h2>
   </div>
-  <span class="game-badge" id="gameTypeBadge">⏳ Loading…</span>
-</div>
 
-<p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1rem;">
-  Share the room code with friends to invite them
-</p>
+  <div style="display:flex; align-items:center; justify-content:center; gap:1rem; flex-wrap:wrap; margin-bottom:1rem;">
+    <div class="room-code-display">
+      <span id="roomCode">----</span>
+      <button class="btn-copy" onclick="copyRoomCode()" title="Copy room code">📋</button>
+    </div>
+    <span class="game-badge" id="gameTypeBadge">Loading...</span>
+  </div>
 
-<div id="scoreboard"></div>
-
-<div style="max-width:480px; margin:0 auto;">
-  <h3 style="text-align:left; padding:0 0.25rem;">Players</h3>
-  <ul id="playerList"></ul>
-</div>
-
-<div style="margin-top:1.25rem;">
-  <button id="startBtn" onclick="startGame()" class="btn-success" style="display:none;">
-    ▶ Start Game
-  </button>
-  <p id="waitMsg" style="color:var(--text-muted); font-size:0.88rem; margin-top:0.5rem; display:none;">
-    Waiting for the host to start…
+  <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1.5rem; text-align: center;">
+    Share this code with friends to invite them
   </p>
-  <p id="minPlayersMsg" style="color:var(--text-muted); font-size:0.82rem; margin-top:0.4rem; display:none;">
-    Need at least 2 players to start
-  </p>
+
+  <div id="scoreboard"></div>
+
+  <div class="player-list-container">
+    <div class="player-list-header">
+      <h3>Players</h3>
+      <span class="player-count" id="playerCount">0/8</span>
+    </div>
+    <ul id="playerList"></ul>
+  </div>
+
+  <!-- Chat System -->
+  <div class="chat-container" style="margin-top: 1.5rem;">
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-message system">Welcome to the lobby! Chat with other players here.</div>
+    </div>
+    <div class="chat-input-row">
+      <input id="chatInput" placeholder="Type a message..." maxlength="100" autocomplete="off"
+        onkeypress="if(event.key==='Enter') sendChatMessage()">
+      <button onclick="sendChatMessage()">Send</button>
+    </div>
+  </div>
+
+  <div style="margin-top: 1.5rem; text-align: center;">
+    <button id="readyBtn" onclick="toggleReady()" class="btn-secondary" style="display:none; margin-bottom: 0.75rem; width: 100%; max-width: 320px;">
+      READY UP
+    </button>
+    
+    <button id="startBtn" onclick="startGame()" class="btn-success btn-glow" style="display:none; width: 100%; max-width: 320px;">
+      START BATTLE
+    </button>
+    
+    <p id="waitMsg" style="color:var(--text-muted); font-size:0.9rem; margin-top:0.75rem; display:none;">
+      Waiting for host to start...
+    </p>
+    
+    <p id="minPlayersMsg" style="color:var(--warning); font-size:0.85rem; margin-top:0.5rem; display:none;">
+      Need at least 2 players to start
+    </p>
+  </div>
 </div>
 
 <div id="toast-container" role="status" aria-live="polite"></div>
@@ -61,11 +88,22 @@ let gameType = localStorage.getItem('game');
 let hostId = null;
 let isHost = false;
 let allPlayers = [];
+let isReady = false;
 
-const GAME_ICONS  = { reaction: '⚡', tictactoe: '🎯', wordchain: '💬', mathduel: '🧠', rpsarena: '✂️', anagram: '🔤', numberhunt: '🎲' };
-const GAME_LABELS = { reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain', mathduel: 'Math Duel', rpsarena: 'RPS Arena', anagram: 'Anagram Sprint', numberhunt: 'Number Hunt' };
+const GAME_ICONS = { 
+  reaction: '⚡', tictactoe: '⭕', wordchain: '🔗', mathduel: '🔢', 
+  rpsarena: '✊', anagram: '🔤', numberhunt: '🎯', memorymatch: '🧩',
+  speedtyping: '⌨️', colormatch: '🎨', simonsays: '🎵', trivia: '❓'
+};
 
-document.getElementById('roomCode').innerText = room || '—';
+const GAME_LABELS = { 
+  reaction: 'Reaction', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain', 
+  mathduel: 'Math Duel', rpsarena: 'RPS Arena', anagram: 'Anagram', 
+  numberhunt: 'Number Hunt', memorymatch: 'Memory Match', speedtyping: 'Speed Typing',
+  colormatch: 'Color Match', simonsays: 'Simon Says', trivia: 'Trivia Challenge'
+};
+
+document.getElementById('roomCode').innerText = room || '----';
 setGameBadge(gameType);
 
 function setGameBadge(game) {
@@ -77,7 +115,7 @@ function setGameBadge(game) {
 
 function copyRoomCode() {
   const code = document.getElementById('roomCode').innerText;
-  if (!code || code === '—') return;
+  if (!code || code === '----') return;
   navigator.clipboard.writeText(code).then(() => {
     showToast('Room code copied!', 'success', 1800);
   }).catch(() => {
@@ -85,39 +123,84 @@ function copyRoomCode() {
   });
 }
 
+function leaveRoom() {
+  localStorage.removeItem('room');
+  localStorage.removeItem('game');
+  window.location.href = 'index.html';
+}
+
+function toggleReady() {
+  isReady = !isReady;
+  const btn = document.getElementById('readyBtn');
+  if (isReady) {
+    btn.textContent = 'READY ✓';
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-success');
+  } else {
+    btn.textContent = 'READY UP';
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-secondary');
+  }
+  socket.emit('playerReady', { room, ready: isReady });
+}
+
+function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (!message) return;
+  
+  socket.emit('chatMessage', { room, message, playerName });
+  input.value = '';
+  input.focus();
+}
+
 function updateStartButton() {
   const startBtn = document.getElementById('startBtn');
-  const waitMsg  = document.getElementById('waitMsg');
-  const minMsg   = document.getElementById('minPlayersMsg');
+  const readyBtn = document.getElementById('readyBtn');
+  const waitMsg = document.getElementById('waitMsg');
+  const minMsg = document.getElementById('minPlayersMsg');
+  
   if (isHost) {
     startBtn.style.display = 'inline-flex';
-    waitMsg.style.display  = 'none';
-    minMsg.style.display   = allPlayers.length < 2 ? 'block' : 'none';
-    startBtn.disabled      = allPlayers.length < 2;
+    readyBtn.style.display = 'none';
+    waitMsg.style.display = 'none';
+    minMsg.style.display = allPlayers.length < 2 ? 'block' : 'none';
+    startBtn.disabled = allPlayers.length < 2;
   } else {
     startBtn.style.display = 'none';
-    waitMsg.style.display  = 'block';
-    minMsg.style.display   = 'none';
+    readyBtn.style.display = 'inline-flex';
+    waitMsg.style.display = 'block';
+    minMsg.style.display = 'none';
   }
 }
 
 function renderPlayerList(players) {
   allPlayers = players;
   const list = document.getElementById('playerList');
+  const countEl = document.getElementById('playerCount');
   list.innerHTML = '';
+  
+  countEl.textContent = `${players.length}/8`;
+  
   players.forEach(p => {
     const li = document.createElement('li');
     const isCurrentHost = hostId && p.id === hostId;
     const initials = (p.name || '?').substring(0, 2).toUpperCase();
+    const isMe = p.id === socket.id;
+    
     li.innerHTML = `
-      <div class="player-avatar">${initials}</div>
+      <div class="player-avatar ${isCurrentHost ? 'host' : ''}">${initials}</div>
       <div class="player-info">
-        <div class="player-name">${escapeHtml(p.name)}${isCurrentHost ? ' <span class="player-badge">👑 Host</span>' : ''}</div>
+        <div class="player-name">${escapeHtml(p.name)}${isMe ? ' <span style="color:var(--primary)">(You)</span>' : ''}</div>
         <div class="player-score-label">Score: ${p.score || 0}</div>
+      </div>
+      <div class="player-status ${p.ready ? 'ready' : ''}">
+        ${isCurrentHost ? '<span class="player-badge">HOST</span>' : (p.ready ? 'Ready' : 'Not Ready')}
       </div>
     `;
     list.appendChild(li);
   });
+  
   updateScoreboard(players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {}));
   updateStartButton();
 }
@@ -137,7 +220,7 @@ let initialConnectDone = false;
 
 socket.on('connect', () => {
   if (!room) {
-    showToast('No room found. Redirecting…', 'error');
+    showToast('No room found. Redirecting...', 'error');
     setTimeout(() => window.location.href = 'index.html', 1500);
     return;
   }
@@ -175,8 +258,24 @@ socket.on('updatePlayers', players => {
   renderPlayerList(players);
 });
 
+socket.on('chatMessage', ({ playerName: name, message }) => {
+  const chatMessages = document.getElementById('chatMessages');
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'chat-message';
+  msgDiv.innerHTML = `<strong style="color: var(--primary);">${escapeHtml(name)}:</strong> ${escapeHtml(message)}`;
+  chatMessages.appendChild(msgDiv);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
 socket.on('gameStarted', () => {
   window.location.href = 'game.html';
+});
+
+socket.on('error', (msg) => {
+  showToast(msg, 'error');
+  if (msg === 'Room not found') {
+    setTimeout(() => window.location.href = 'index.html', 2500);
+  }
 });
 
 setupGameListeners();
@@ -184,4 +283,3 @@ setupGameListeners();
 
 </body>
 </html>
-

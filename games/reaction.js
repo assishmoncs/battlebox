@@ -2,9 +2,18 @@ module.exports = function(roomCode, io, rooms) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
+  // Clear any existing timeouts
+  if (room.gameState.goTimeoutRef) {
+    clearTimeout(room.gameState.goTimeoutRef);
+  }
+  if (room.gameState.missTimeoutRef) {
+    clearTimeout(room.gameState.missTimeoutRef);
+  }
+
   const waitTime = Math.random() * 3000 + 2000;
   room.gameState.waiting = true;
   room.gameState.canClick = false;
+  room.gameState.clicked = false; // Track if someone already clicked
   room.gameState.round = (room.gameState.round || 0) + 1;
 
   const currentRound = room.gameState.round;
@@ -28,9 +37,9 @@ module.exports = function(roomCode, io, rooms) {
     });
 
     // Miss timeout — nobody clicked
-    setTimeout(() => {
+    const missTimeout = setTimeout(() => {
       const r2 = rooms[roomCode];
-      if (!r2 || !r2.gameState.canClick || r2.gameState.round !== currentRound) return;
+      if (!r2 || !r2.gameState.canClick || r2.gameState.round !== currentRound || r2.gameState.clicked) return;
       r2.gameState.canClick = false;
       io.to(roomCode).emit('updateGameState', {
         scores: r2.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {}),
@@ -39,6 +48,8 @@ module.exports = function(roomCode, io, rooms) {
       });
       nextReactionRound(roomCode, io, rooms);
     }, 3000);
+    
+    r.gameState.missTimeoutRef = missTimeout;
   }, waitTime);
 
   // Store timeout reference for potential cleanup

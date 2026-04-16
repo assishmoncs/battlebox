@@ -3,72 +3,173 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BattleBox</title>
+  <title>BattleBox - Multiplayer Gaming Arena</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
 <body>
 
-<div class="hero">
-  <h1>⚔️ BattleBox</h1>
-  <p class="hero-subtitle">Real-time multiplayer mini-games</p>
+<nav class="nav-bar">
+  <span class="nav-brand">BattleBox</span>
+  <button onclick="showHowToPlay()" class="btn-secondary">How to Play</button>
+</nav>
+
+<div class="container">
+  <div class="hero">
+    <h1>BATTLEBOX</h1>
+    <p class="hero-subtitle">The Ultimate Multiplayer Gaming Arena</p>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <div class="stat-value">12</div>
+        <div class="stat-label">Games</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">∞</div>
+        <div class="stat-label">Players</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">0ms</div>
+        <div class="stat-label">Latency</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="form-group">
+      <label for="nameInput">Enter Your Gamertag</label>
+      <input id="nameInput" placeholder="Your name" maxlength="20" autocomplete="off" autocapitalize="words"
+        onkeypress="if(event.key==='Enter') createRoom()">
+    </div>
+
+    <div class="form-group">
+      <label>Select Your Battle</label>
+      <div class="game-select-grid" id="gameSelectGrid">
+        <!-- Speed Games -->
+        <div class="game-option selected" data-value="reaction" data-category="speed" onclick="selectGame(this)">
+          <span class="game-icon">⚡</span>
+          <span class="game-name">Reaction</span>
+          <span class="game-category">Speed</span>
+        </div>
+        <div class="game-option" data-value="speedtyping" data-category="speed" onclick="selectGame(this)">
+          <span class="game-icon">⌨️</span>
+          <span class="game-name">Speed Type</span>
+          <span class="game-category">Speed</span>
+        </div>
+        <div class="game-option" data-value="colormatch" data-category="speed" onclick="selectGame(this)">
+          <span class="game-icon">🎨</span>
+          <span class="game-name">Color Match</span>
+          <span class="game-category">Speed</span>
+        </div>
+        
+        <!-- Strategy Games -->
+        <div class="game-option" data-value="tictactoe" data-category="strategy" onclick="selectGame(this)">
+          <span class="game-icon">⭕</span>
+          <span class="game-name">Tic Tac Toe</span>
+          <span class="game-category">Strategy</span>
+        </div>
+        <div class="game-option" data-value="memorymatch" data-category="strategy" onclick="selectGame(this)">
+          <span class="game-icon">🧩</span>
+          <span class="game-name">Memory</span>
+          <span class="game-category">Strategy</span>
+        </div>
+        <div class="game-option" data-value="simonsays" data-category="strategy" onclick="selectGame(this)">
+          <span class="game-icon">🎵</span>
+          <span class="game-name">Simon Says</span>
+          <span class="game-category">Strategy</span>
+        </div>
+        
+        <!-- Word Games -->
+        <div class="game-option" data-value="wordchain" data-category="word" onclick="selectGame(this)">
+          <span class="game-icon">🔗</span>
+          <span class="game-name">Word Chain</span>
+          <span class="game-category">Word</span>
+        </div>
+        <div class="game-option" data-value="anagram" data-category="word" onclick="selectGame(this)">
+          <span class="game-icon">🔤</span>
+          <span class="game-name">Anagram</span>
+          <span class="game-category">Word</span>
+        </div>
+        
+        <!-- Math Games -->
+        <div class="game-option" data-value="mathduel" data-category="math" onclick="selectGame(this)">
+          <span class="game-icon">🔢</span>
+          <span class="game-name">Math Duel</span>
+          <span class="game-category">Math</span>
+        </div>
+        <div class="game-option" data-value="numberhunt" data-category="math" onclick="selectGame(this)">
+          <span class="game-icon">🎯</span>
+          <span class="game-name">Number Hunt</span>
+          <span class="game-category">Math</span>
+        </div>
+        
+        <!-- Classic Games -->
+        <div class="game-option" data-value="rpsarena" data-category="classic" onclick="selectGame(this)">
+          <span class="game-icon">✊</span>
+          <span class="game-name">RPS Arena</span>
+          <span class="game-category">Classic</span>
+        </div>
+        
+        <!-- Trivia Games -->
+        <div class="game-option" data-value="trivia" data-category="trivia" onclick="selectGame(this)">
+          <span class="game-icon">❓</span>
+          <span class="game-name">Trivia</span>
+          <span class="game-category">Trivia</span>
+        </div>
+      </div>
+      <input type="hidden" id="gameSelect" value="reaction">
+    </div>
+
+    <button onclick="createRoom()" class="btn-primary btn-glow" style="width: 100%; margin-bottom: 0.75rem;">
+      CREATE BATTLE ROOM
+    </button>
+
+    <div class="divider">or join existing</div>
+
+    <div class="form-group">
+      <label for="roomInput">Room Code</label>
+      <div class="form-row">
+        <input id="roomInput" placeholder="ABCD" maxlength="4"
+          style="text-transform: uppercase; letter-spacing: 6px; font-weight: 700; text-align: center;"
+          oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')"
+          onkeypress="if(event.key==='Enter') joinRoom()">
+        <button onclick="joinRoom()">JOIN</button>
+      </div>
+    </div>
+    
+    <div id="recentRooms" style="margin-top: 1rem; display: none;">
+      <label>Recent Rooms</label>
+      <div id="recentRoomsList" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;"></div>
+    </div>
+  </div>
 </div>
 
-<div class="card">
-  <div class="form-group">
-    <label for="nameInput">Your Name</label>
-    <input id="nameInput" placeholder="Enter your name" maxlength="20" autocomplete="off" autocapitalize="words">
-  </div>
-
-  <div class="form-group">
-    <label>Choose a Game</label>
-    <div class="game-select-grid" id="gameSelectGrid">
-      <div class="game-option selected" data-value="reaction" onclick="selectGame(this)">
-        <span class="game-icon">⚡</span>
-        <span class="game-name">Reaction Battle</span>
-      </div>
-      <div class="game-option" data-value="tictactoe" onclick="selectGame(this)">
-        <span class="game-icon">🎯</span>
-        <span class="game-name">Tic Tac Toe</span>
-      </div>
-      <div class="game-option" data-value="wordchain" onclick="selectGame(this)">
-        <span class="game-icon">💬</span>
-        <span class="game-name">Word Chain</span>
-      </div>
-      <div class="game-option" data-value="mathduel" onclick="selectGame(this)">
-        <span class="game-icon">🧠</span>
-        <span class="game-name">Math Duel</span>
-      </div>
-      <div class="game-option" data-value="rpsarena" onclick="selectGame(this)">
-        <span class="game-icon">✂️</span>
-        <span class="game-name">RPS Arena</span>
-      </div>
-      <div class="game-option" data-value="anagram" onclick="selectGame(this)">
-        <span class="game-icon">🔤</span>
-        <span class="game-name">Anagram Sprint</span>
-      </div>
-      <div class="game-option" data-value="numberhunt" onclick="selectGame(this)">
-        <span class="game-icon">🎲</span>
-        <span class="game-name">Number Hunt</span>
-      </div>
+<!-- How to Play Modal -->
+<div id="howToPlayModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10, 10, 15, 0.95); z-index: 10000; align-items: center; justify-content: center; padding: 2rem;">
+  <div class="card" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+    <h2 style="margin-bottom: 1.5rem;">How to Play</h2>
+    
+    <div style="margin-bottom: 1.5rem;">
+      <h3 style="color: var(--primary); margin-bottom: 0.5rem;">1. Create or Join</h3>
+      <p style="color: var(--text-muted);">Enter your name, select a game, and create a room. Share the 4-letter room code with friends, or join their room.</p>
     </div>
-    <input type="hidden" id="gameSelect" value="reaction">
-  </div>
-
-  <button onclick="createRoom()" class="btn-success" style="width: 100%; margin-bottom: 0.5rem;">
-    🚀 Create Room
-  </button>
-
-  <div class="divider">or join an existing room</div>
-
-  <div class="form-group">
-    <label for="roomInput">Room Code</label>
-    <div class="form-row">
-      <input id="roomInput" placeholder="e.g. AB12" maxlength="4"
-        style="text-transform: uppercase; letter-spacing: 3px; font-weight: 700;"
-        oninput="this.value = this.value.toUpperCase()"
-        onkeypress="if(event.key==='Enter') joinRoom()">
-      <button onclick="joinRoom()">Join →</button>
+    
+    <div style="margin-bottom: 1.5rem;">
+      <h3 style="color: var(--primary); margin-bottom: 0.5rem;">2. Wait in Lobby</h3>
+      <p style="color: var(--text-muted);">The host can start the game once at least 2 players have joined. Use the lobby chat to communicate!</p>
     </div>
+    
+    <div style="margin-bottom: 1.5rem;">
+      <h3 style="color: var(--primary); margin-bottom: 0.5rem;">3. Battle!</h3>
+      <p style="color: var(--text-muted);">Compete in real-time. Each game has unique rules - read the instructions and do your best!</p>
+    </div>
+    
+    <div style="margin-bottom: 1.5rem;">
+      <h3 style="color: var(--primary); margin-bottom: 0.5rem;">4. Win & Rematch</h3>
+      <p style="color: var(--text-muted);">Highest score wins! Return to the lobby for a rematch or try a different game.</p>
+    </div>
+    
+    <button onclick="hideHowToPlay()" class="btn-secondary" style="width: 100%;">Got it!</button>
   </div>
 </div>
 
@@ -78,4 +179,3 @@
 <script src="script.js"></script>
 </body>
 </html>
-

@@ -3,26 +3,62 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Game – BattleBox</title>
+  <title>Game - BattleBox</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
 <body>
 <nav class="nav-bar">
-  <span class="nav-brand">⚔️ BattleBox</span>
-  <button onclick="window.location.href='lobby.html'">← Lobby</button>
+  <span class="nav-brand">BattleBox</span>
+  <div style="display: flex; gap: 0.5rem;">
+    <button onclick="window.location.href='lobby.html'" class="btn-secondary">Lobby</button>
+  </div>
 </nav>
 
-<h2 id="gameTitle">Game</h2>
+<div class="container">
+  <div style="text-align: center; margin-bottom: 1rem;">
+    <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+      <span id="gameIcon" style="font-size: 2rem;">🎮</span>
+      <h2 id="gameTitle" style="margin: 0;">Game</h2>
+    </div>
+    <span class="game-badge" id="roomBadge">Room: ----</span>
+  </div>
 
-<div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.75rem;">
-  <span class="game-badge" id="roomBadge">🏠 —</span>
+  <div id="scoreboard"></div>
+
+  <!-- Turn Timer -->
+  <div id="turnTimer" style="max-width: 480px; margin: 0.5rem auto; display: none;">
+    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+      <span>Time Remaining</span>
+      <span id="timerValue">30s</span>
+    </div>
+    <div class="trivia-timer">
+      <div class="trivia-timer-bar" id="timerBar" style="width: 100%;"></div>
+    </div>
+  </div>
+
+  <div id="gameContainer"></div>
+
+  <div id="status" class="waiting">Initializing battle...</div>
+
+  <!-- Game Controls -->
+  <div id="gameControls" style="margin-top: 1.5rem; text-align: center; display: none;">
+    <button onclick="requestRematch()" class="btn-primary" style="margin-right: 0.5rem;">Rematch</button>
+    <button onclick="window.location.href='lobby.html'" class="btn-secondary">Back to Lobby</button>
+  </div>
 </div>
 
-<div id="scoreboard"></div>
-
-<div id="gameContainer"></div>
-
-<div id="status" class="waiting">Loading…</div>
+<!-- Victory/Defeat Modal -->
+<div id="resultModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(10, 10, 15, 0.95); z-index: 10000; align-items: center; justify-content: center; flex-direction: column;">
+  <div id="resultIcon" style="font-size: 5rem; margin-bottom: 1rem;">🏆</div>
+  <h2 id="resultTitle" style="font-size: 3rem; margin-bottom: 1rem;">VICTORY!</h2>
+  <p id="resultMessage" style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem; text-align: center; max-width: 400px;"></p>
+  <div style="display: flex; gap: 1rem;">
+    <button onclick="requestRematch()" class="btn-primary">Rematch</button>
+    <button onclick="window.location.href='lobby.html'" class="btn-secondary">Lobby</button>
+  </div>
+</div>
 
 <div id="toast-container" role="status" aria-live="polite"></div>
 
@@ -33,24 +69,111 @@ const socket = io();
 let room = localStorage.getItem('room');
 let gameType = localStorage.getItem('game') || 'reaction';
 
-const GAME_LABELS = { reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain', mathduel: 'Math Duel', rpsarena: 'RPS Arena', anagram: 'Anagram Sprint', numberhunt: 'Number Hunt' };
-const GAME_ICONS  = { reaction: '⚡', tictactoe: '🎯', wordchain: '💬', mathduel: '🧠', rpsarena: '✂️', anagram: '🔤', numberhunt: '🎲' };
+const GAME_LABELS = { 
+  reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain', 
+  mathduel: 'Math Duel', rpsarena: 'RPS Arena', anagram: 'Anagram Sprint', 
+  numberhunt: 'Number Hunt', memorymatch: 'Memory Match', speedtyping: 'Speed Typing',
+  colormatch: 'Color Match', simonsays: 'Simon Says', trivia: 'Trivia Challenge'
+};
 
-document.getElementById('roomBadge').textContent = `🏠 Room: ${room || '—'}`;
-document.getElementById('gameTitle').textContent = `${GAME_ICONS[gameType] || '🎮'} ${GAME_LABELS[gameType] || gameType}`;
-document.title = `${GAME_LABELS[gameType] || 'Game'} – BattleBox`;
+const GAME_ICONS = { 
+  reaction: '⚡', tictactoe: '⭕', wordchain: '🔗', mathduel: '🔢', 
+  rpsarena: '✊', anagram: '🔤', numberhunt: '🎯', memorymatch: '🧩',
+  speedtyping: '⌨️', colormatch: '🎨', simonsays: '🎵', trivia: '❓'
+};
+
+document.getElementById('roomBadge').textContent = `Room: ${room || '----'}`;
+document.getElementById('gameTitle').textContent = GAME_LABELS[gameType] || 'Game';
+document.getElementById('gameIcon').textContent = GAME_ICONS[gameType] || '🎮';
+document.title = `${GAME_LABELS[gameType] || 'Game'} - BattleBox`;
 
 let playerName = localStorage.getItem('playerName') || 'Anonymous';
+let timerInterval = null;
 
 initGameUI(gameType);
 setupGameListeners();
+
+function startTimer(duration) {
+  const timerEl = document.getElementById('turnTimer');
+  const timerBar = document.getElementById('timerBar');
+  const timerValue = document.getElementById('timerValue');
+  
+  timerEl.style.display = 'block';
+  let timeLeft = duration;
+  
+  if (timerInterval) clearInterval(timerInterval);
+  
+  timerInterval = setInterval(() => {
+    timeLeft -= 0.1;
+    const percentage = (timeLeft / duration) * 100;
+    timerBar.style.width = `${Math.max(0, percentage)}%`;
+    timerValue.textContent = `${Math.ceil(timeLeft)}s`;
+    
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      timerEl.style.display = 'none';
+    }
+  }, 100);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  document.getElementById('turnTimer').style.display = 'none';
+}
+
+function showResult(winner, isVictory) {
+  const modal = document.getElementById('resultModal');
+  const icon = document.getElementById('resultIcon');
+  const title = document.getElementById('resultTitle');
+  const message = document.getElementById('resultMessage');
+  
+  modal.style.display = 'flex';
+  
+  if (isVictory) {
+    icon.textContent = '🏆';
+    title.textContent = 'VICTORY!';
+    title.style.color = 'var(--success)';
+    title.style.textShadow = '0 0 40px var(--success-glow)';
+    message.textContent = `Congratulations! You won ${winner}!`;
+    createConfetti();
+  } else {
+    icon.textContent = '💔';
+    title.textContent = 'DEFEAT';
+    title.style.color = 'var(--danger)';
+    title.style.textShadow = '0 0 40px var(--danger-glow)';
+    message.textContent = winner ? `${winner} won this battle.` : "It's a tie!";
+  }
+}
+
+function createConfetti() {
+  const colors = ['#00f0ff', '#ff00ff', '#ffea00', '#00ff88'];
+  for (let i = 0; i < 50; i++) {
+    setTimeout(() => {
+      const confetti = document.createElement('div');
+      confetti.className = 'confetti';
+      confetti.style.left = Math.random() * 100 + 'vw';
+      confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+      document.body.appendChild(confetti);
+      setTimeout(() => confetti.remove(), 4000);
+    }, i * 50);
+  }
+}
+
+function requestRematch() {
+  document.getElementById('resultModal').style.display = 'none';
+  socket.emit('requestRematch', room);
+}
 
 socket.on('updatePlayers', players => {
   updateScoreboard(players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {}));
 });
 
 socket.on('disconnect', () => {
-  showToast('Disconnected from server. Trying to reconnect…', 'warning', 5000);
+  showToast('Disconnected from server. Reconnecting...', 'warning', 5000);
 });
 
 socket.on('connect', () => {
@@ -58,8 +181,24 @@ socket.on('connect', () => {
     socket.emit('joinRoom', { room, playerName });
   }
 });
+
+// Override gameOver handler from games.js
+socket.off && socket.off('gameOver');
+socket.on('gameOver', (result) => {
+  stopTimer();
+  const statusEl = document.getElementById('status');
+  if (statusEl) {
+    statusEl.textContent = result.winner ? `Winner: ${result.winner}` : "It's a tie!";
+    statusEl.className = result.winner ? 'status success' : 'status waiting';
+  }
+  
+  // Show result modal
+  const isVictory = result.winner && result.winner.includes(playerName);
+  showResult(result.winner, isVictory);
+  
+  document.getElementById('gameControls').style.display = 'block';
+});
 </script>
 
 </body>
 </html>
-
