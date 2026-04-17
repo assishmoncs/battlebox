@@ -35,6 +35,11 @@ function getRoom(roomCode) {
   return rooms[roomCode];
 }
 
+function findPlayerByName(room, playerName) {
+  if (!room || !room.players) return null;
+  return room.players.find(p => p.name === playerName) || null;
+}
+
 function buildScores(room) {
   if (!room || !room.players) return {};
   return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {});
@@ -145,20 +150,22 @@ io.on('connection', (socket) => {
       if (!room) {
         return socket.emit('error', 'Room not found');
       }
-      
-      if (room.players.length >= MAX_PLAYERS_PER_ROOM) {
-        return socket.emit('error', 'Room is full (max 8 players)');
-      }
-      
-      if (room.state === 'playing') {
+
+      const safeName = sanitizeName(playerName);
+      const existingPlayer = findPlayerByName(room, safeName);
+      const isReconnectingPlayer = !!existingPlayer;
+
+      if (room.state === 'playing' && !isReconnectingPlayer) {
         return socket.emit('error', 'Game already in progress');
       }
-      
-      const safeName = sanitizeName(playerName);
+
+      if (!isReconnectingPlayer && room.players.length >= MAX_PLAYERS_PER_ROOM) {
+        return socket.emit('error', 'Room is full (max 8 players)');
+      }
+
       socket.join(roomCode);
 
       // Check if player already exists (reconnection by name)
-      const existingPlayer = room.players.find(p => p.name === safeName);
       if (existingPlayer) {
         // Cancel any pending removal from a recent disconnect
         if (disconnectTimers[existingPlayer.id]) {
