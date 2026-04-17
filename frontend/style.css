@@ -1649,6 +1649,19 @@ li:hover {
     width: 100%; 
     max-width: none; 
   }
+
+  .chat-input-row input {
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .chat-input-row button {
+    width: auto;
+    min-width: 72px;
+    max-width: none;
+    flex: 0 0 auto;
+  }
   
   .choice-grid { 
     grid-template-columns: 1fr; 
