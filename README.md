@@ -2,8 +2,6 @@
 
 BattleBox is a professional multiplayer gaming platform featuring real-time competitive mini-games with a modern cyberpunk-inspired UI.
 
-![Games](12) | ![Players](∞) | ![Latency](<10ms)
-
 ## Features
 
 - **12 Multiplayer Mini-Games** across multiple categories
