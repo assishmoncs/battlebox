@@ -1757,3 +1757,21 @@ li:hover {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
+
+/* ===== Accessibility: Screen-reader-only utility (UX-01/02 fix) ===== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===== Accessibility: Result modal uses CSS class (UX-05 fix) ===== */
+.hidden {
+  display: none !important;
+}

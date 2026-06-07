@@ -1,6 +1,6 @@
-function buildScores(room) {
-  return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {});
-}
+'use strict';
+
+const { buildScores, endGame } = require('./utils');
 
 function normalizeChoice(choice) {
   const v = String(choice || '').toLowerCase().trim();
@@ -9,13 +9,26 @@ function normalizeChoice(choice) {
 
 function decideWinner(a, b) {
   if (a === b) return 0;
-  if ((a === 'rock' && b === 'scissors') || (a === 'paper' && b === 'rock') || (a === 'scissors' && b === 'paper')) return 1;
+  if (
+    (a === 'rock' && b === 'scissors') ||
+    (a === 'paper' && b === 'rock') ||
+    (a === 'scissors' && b === 'paper')
+  ) return 1;
   return -1;
 }
 
-module.exports = function(roomCode, io, rooms, move) {
+/**
+ * RPS Arena – 2-player only (BUG-01 fix: >2 players caused silent corruption).
+ */
+module.exports = function rpsarena(roomCode, io, rooms, move) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
+
+  // Hard cap at 2 players (BUG-01)
+  if (room.players.length !== 2) {
+    io.to(roomCode).emit('error', 'RPS Arena requires exactly 2 players');
+    return;
+  }
 
   const round = room.gameState.round || 1;
   const maxRounds = room.gameState.maxRounds || 5;
@@ -32,24 +45,32 @@ module.exports = function(roomCode, io, rooms, move) {
 
   const player = room.players.find(p => p.id === move.playerId);
   if (!player) return;
+
   const choice = normalizeChoice(move.choice);
   if (!choice) {
     io.to(move.playerId).emit('error', 'Choose rock, paper, or scissors');
     return;
   }
 
+  // Prevent double-submission
+  if (room.gameState.choices[move.playerId] !== undefined) {
+    io.to(move.playerId).emit('error', 'You already locked in your choice');
+    return;
+  }
+
   room.gameState.choices[move.playerId] = choice;
 
   const submitted = room.players.filter(p => room.gameState.choices[p.id]);
-  if (submitted.length < room.players.length) {
+  if (submitted.length < 2) {
     io.to(roomCode).emit('updateGameState', {
       gameState: { ...room.gameState, round, maxRounds },
       scores: buildScores(room),
-      status: `${submitted.length}/${room.players.length} players locked in for round ${round}`
+      status: `${submitted.length}/2 players locked in for round ${round}`
     });
     return;
   }
 
+  // Both submitted — resolve
   const [p1, p2] = room.players;
   const c1 = room.gameState.choices[p1.id];
   const c2 = room.gameState.choices[p2.id];
@@ -71,20 +92,18 @@ module.exports = function(roomCode, io, rooms, move) {
   io.to(roomCode).emit('updatePlayers', room.players);
 
   if (round >= maxRounds) {
-    const winner = room.players.reduce((best, p) => p.score > best.score ? p : best, room.players[0]);
     io.to(roomCode).emit('updateGameState', {
       gameState: room.gameState,
       scores: buildScores(room),
-      status: `Game over! ${winner.name} wins RPS Arena with ${winner.score} points!`
+      status
     });
-    io.to(roomCode).emit('gameOver', { winner: `${winner.name} wins RPS Arena!` });
-    room.gameState = {};
-    room.state = 'lobby';
+    setTimeout(() => endGame(roomCode, io, rooms, 'RPS Arena'), 1500);
     return;
   }
 
   room.gameState.round = round + 1;
   room.gameState.choices = {};
+
   io.to(roomCode).emit('updateGameState', {
     gameState: { ...room.gameState, round: room.gameState.round, maxRounds },
     scores: buildScores(room),

@@ -1,3 +1,7 @@
+'use strict';
+
+const { buildScores, shuffleArray, endGame } = require('./utils');
+
 const WORDS = [
   'gaming', 'battle', 'victory', 'challenge', 'warrior', 'champion',
   'lightning', 'thunder', 'storm', 'dragon', 'phoenix', 'titan',
@@ -6,49 +10,33 @@ const WORDS = [
   'eclipse', 'horizon', 'zenith', 'vertex', 'apex', 'summit'
 ];
 
-function buildScores(room) {
-  return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {});
-}
-
-function shuffleArray(arr) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-module.exports = function(roomCode, io, rooms, move) {
+/**
+ * Speed Typing
+ * BUG-07 fix: wordStartTime is only set once per word, not on every module call.
+ */
+module.exports = function speedtyping(roomCode, io, rooms, move) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
-  // Initialize game state
+  // Initialise once
   if (!room.gameState.words) {
     room.gameState.words = shuffleArray(WORDS).slice(0, 10);
     room.gameState.currentWordIndex = 0;
     room.gameState.completed = {};
-    room.gameState.wordStartTime = {};
-    room.players.forEach(p => {
-      room.gameState.completed[p.id] = 0;
-    });
+    // BUG-07 fix: set wordStartTime only here, not on every call
+    room.gameState.wordStartTime = Date.now();
+    room.players.forEach(p => { room.gameState.completed[p.id] = 0; });
   }
 
   const currentWord = room.gameState.words[room.gameState.currentWordIndex];
 
-  // If no move, send current word
   if (!move) {
-    room.gameState.wordStartTime = Date.now();
+    // Do NOT reset wordStartTime here (that was the BUG-07 bug)
     io.to(roomCode).emit('updateGameState', {
-      gameState: {
-        ...room.gameState,
-        currentWord: currentWord,
-        wpm: 0,
-        accuracy: 100
-      },
+      gameState: { ...room.gameState, currentWord },
       scores: buildScores(room),
-      status: `Type: "${currentWord}" - First to finish wins the round!`,
-      currentPlayerId: null // All players can play
+      status: `Type: "${currentWord}" — First to finish wins the round!`,
+      currentPlayerId: null
     });
     return;
   }
@@ -57,81 +45,50 @@ module.exports = function(roomCode, io, rooms, move) {
   const player = room.players.find(p => p.id === playerId);
   if (!player) return;
 
-  // Check if player already completed this word
+  // Already completed this word
   if (room.gameState.completed[playerId] > room.gameState.currentWordIndex) {
-    io.to(playerId).emit('error', 'You already completed this word');
+    io.to(playerId).emit('error', 'You already finished this word');
     return;
   }
 
-  // Check if word is correct
-  if (typed.toLowerCase().trim() === currentWord.toLowerCase()) {
-    const timeTaken = Date.now() - room.gameState.wordStartTime;
-    const wpm = Math.round((currentWord.length / 5) / (timeTaken / 60000));
-    
-    room.gameState.completed[playerId] = room.gameState.currentWordIndex + 1;
-    player.score += Math.max(5, 20 - room.gameState.currentWordIndex);
+  if (String(typed).trim() !== currentWord) {
+    io.to(playerId).emit('error', 'Incorrect — keep trying!');
+    return;
+  }
 
-    io.to(roomCode).emit('updatePlayers', room.players);
+  // Correct — award points based on speed
+  const elapsed = (Date.now() - room.gameState.wordStartTime) / 1000;
+  const wpm = Math.round((currentWord.length / 5) / (elapsed / 60));
+  const points = Math.max(5, Math.min(20, Math.round(20 - elapsed)));
+  player.score += points;
+  room.gameState.completed[playerId] = room.gameState.currentWordIndex + 1;
 
-    // Check if all players completed
-    const allCompleted = room.players.every(p => 
-      room.gameState.completed[p.id] > room.gameState.currentWordIndex
-    );
+  io.to(roomCode).emit('updatePlayers', room.players);
 
-    if (allCompleted || room.gameState.currentWordIndex >= 9) {
-      // Move to next word or end game
-      room.gameState.currentWordIndex++;
-      
-      if (room.gameState.currentWordIndex >= 10) {
-        // Game over
-        const winner = room.players.reduce((best, p) => p.score > best.score ? p : best, room.players[0]);
-        io.to(roomCode).emit('updateGameState', {
-          gameState: room.gameState,
-          scores: buildScores(room),
-          status: `Game Over! ${winner.name} wins Speed Typing with ${winner.score} points!`,
-          wpm: wpm,
-          accuracy: 100
-        });
-        io.to(roomCode).emit('gameOver', { winner: `${winner.name} wins Speed Typing!` });
-        room.gameState = {};
-        room.state = 'lobby';
-        return;
-      }
+  const allDone = room.players.every(
+    p => room.gameState.completed[p.id] > room.gameState.currentWordIndex
+  );
 
-      // Next word
-      const nextWord = room.gameState.words[room.gameState.currentWordIndex];
-      room.gameState.wordStartTime = Date.now();
-      
-      io.to(roomCode).emit('updateGameState', {
-        gameState: {
-          ...room.gameState,
-          currentWord: nextWord,
-          wpm: wpm,
-          accuracy: 100
-        },
-        scores: buildScores(room),
-        status: `Round ${room.gameState.currentWordIndex + 1}/10 - Type: "${nextWord}"`,
-        currentPlayerId: null
-      });
-    } else {
-      // Wait for others
-      const completedCount = room.players.filter(p => 
-        room.gameState.completed[p.id] > room.gameState.currentWordIndex
-      ).length;
-      
-      io.to(roomCode).emit('updateGameState', {
-        gameState: {
-          ...room.gameState,
-          currentWord: currentWord,
-          wpm: wpm,
-          accuracy: 100
-        },
-        scores: buildScores(room),
-        status: `${player.name} finished! Waiting for others... (${completedCount}/${room.players.length})`,
-        currentPlayerId: null
-      });
+  if (allDone || room.gameState.currentWordIndex >= room.gameState.words.length - 1) {
+    if (room.gameState.currentWordIndex >= room.gameState.words.length - 1) {
+      endGame(roomCode, io, rooms, 'Speed Typing');
+      return;
     }
+    room.gameState.currentWordIndex += 1;
+    room.gameState.wordStartTime = Date.now(); // Only reset here, on a new word
+    const nextWord = room.gameState.words[room.gameState.currentWordIndex];
+    io.to(roomCode).emit('updateGameState', {
+      gameState: { ...room.gameState, currentWord: nextWord, wpm },
+      scores: buildScores(room),
+      status: `Next word: "${nextWord}"`,
+      currentPlayerId: null
+    });
   } else {
-    io.to(playerId).emit('error', 'Incorrect! Try again');
+    io.to(roomCode).emit('updateGameState', {
+      gameState: { ...room.gameState, currentWord, wpm },
+      scores: buildScores(room),
+      status: `${player.name} finished! (+${points} pts) Others still typing...`,
+      currentPlayerId: null
+    });
   }
 };

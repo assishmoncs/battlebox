@@ -1,3 +1,7 @@
+'use strict';
+
+const { buildScores, shuffleArray, endGame } = require('./utils');
+
 const QUESTIONS = [
   { q: '7 + 6', a: 13 },
   { q: '9 + 8', a: 17 },
@@ -13,43 +17,16 @@ const QUESTIONS = [
   { q: '27 ÷ 9', a: 3 }
 ];
 
-function buildScores(room) {
-  return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {});
-}
-
-function shuffleArray(arr) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function finalizeGame(roomCode, io, room) {
-  const winner = room.players.reduce((best, p) => p.score > best.score ? p : best, room.players[0]);
-  io.to(roomCode).emit('updateGameState', {
-    gameState: room.gameState,
-    scores: buildScores(room),
-    status: `Game over! ${winner.name} wins Math Duel with ${winner.score} points!`
-  });
-  io.to(roomCode).emit('gameOver', { winner: `${winner.name} wins Math Duel!` });
-  io.to(roomCode).emit('updatePlayers', room.players);
-  room.gameState = {};
-  room.state = 'lobby';
-}
-
-module.exports = function(roomCode, io, rooms, answer) {
+module.exports = function mathduel(roomCode, io, rooms, answer) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
   if (!room.gameState.questions) {
     room.gameState.questions = shuffleArray(QUESTIONS).slice(0, room.gameState.maxTurns || 12);
   }
+
   if (!room.gameState.questions.length) {
-    io.to(roomCode).emit('gameOver', { winner: 'No questions available' });
-    room.gameState = {};
-    room.state = 'lobby';
+    endGame(roomCode, io, rooms, 'Math Duel');
     return;
   }
 
@@ -61,18 +38,13 @@ module.exports = function(roomCode, io, rooms, answer) {
 
   const currentQuestion = room.gameState.questions[turn - 1];
   if (!currentQuestion) {
-    finalizeGame(roomCode, io, room);
+    endGame(roomCode, io, rooms, 'Math Duel');
     return;
   }
 
   if (answer === undefined) {
     io.to(roomCode).emit('updateGameState', {
-      gameState: {
-        ...room.gameState,
-        prompt: currentQuestion.q,
-        turn,
-        maxTurns
-      },
+      gameState: { ...room.gameState, prompt: currentQuestion.q, turn, maxTurns },
       scores: buildScores(room),
       status: `${currentPlayer.name}'s turn — solve: ${currentQuestion.q}`,
       currentPlayerId: currentPlayer.id
@@ -80,40 +52,48 @@ module.exports = function(roomCode, io, rooms, answer) {
     return;
   }
 
-  const numericAnswer = Number(answer);
-  if (!Number.isFinite(numericAnswer)) {
-    io.to(currentPlayer.id).emit('error', 'Answer must be a number');
-    return;
+  // Validate answer — must be a number
+  const numAnswer = Number(answer);
+  if (!Number.isFinite(numAnswer)) {
+    return io.to(roomCode).emit('error', 'Answer must be a number');
   }
 
-  if (numericAnswer === currentQuestion.a) {
-    currentPlayer.score += 5;
+  if (numAnswer === currentQuestion.a) {
+    currentPlayer.score += 10;
+    io.to(roomCode).emit('updateGameState', {
+      gameState: room.gameState,
+      scores: buildScores(room),
+      status: `✅ Correct! ${currentPlayer.name} gets 10 pts!`
+    });
+  } else {
+    io.to(roomCode).emit('updateGameState', {
+      gameState: room.gameState,
+      scores: buildScores(room),
+      status: `❌ Wrong! Answer was ${currentQuestion.a}.`
+    });
   }
 
-  const nextTurn = turn + 1;
-  if (nextTurn > maxTurns) {
-    room.gameState.turn = maxTurns;
-    finalizeGame(roomCode, io, room);
-    return;
-  }
-
-  room.gameState.turn = nextTurn;
-  room.gameState.currentPlayer = (currentIdx + 1) % room.players.length;
   io.to(roomCode).emit('updatePlayers', room.players);
 
-  const nextPlayer = room.players[room.gameState.currentPlayer];
-  const nextQuestion = room.gameState.questions[nextTurn - 1];
-  const resultLabel = numericAnswer === currentQuestion.a ? '✅ Correct' : '❌ Wrong';
-  const answerReveal = `(${currentQuestion.q} = ${currentQuestion.a})`;
-  const nextPrompt = `${nextPlayer.name}'s turn — solve: ${nextQuestion ? nextQuestion.q : ''}`;
+  if (turn >= maxTurns) {
+    setTimeout(() => endGame(roomCode, io, rooms, 'Math Duel'), 2000);
+    return;
+  }
 
-  io.to(roomCode).emit('updateGameState', {
-    gameState: {
-      ...room.gameState,
-      prompt: nextQuestion ? nextQuestion.q : null
-    },
-    scores: buildScores(room),
-    status: `${resultLabel} ${answerReveal}. ${nextPrompt}`,
-    currentPlayerId: nextPlayer.id
-  });
+  // Advance turn
+  room.gameState.turn = turn + 1;
+  room.gameState.currentPlayer = (currentIdx + 1) % room.players.length;
+  const next = room.players[room.gameState.currentPlayer];
+  const nextQ = room.gameState.questions[room.gameState.turn - 1];
+
+  setTimeout(() => {
+    const r = rooms[roomCode];
+    if (!r || r.state !== 'playing') return;
+    io.to(roomCode).emit('updateGameState', {
+      gameState: { ...r.gameState, prompt: nextQ.q },
+      scores: buildScores(r),
+      status: `${next.name}'s turn — solve: ${nextQ.q}`,
+      currentPlayerId: next.id
+    });
+  }, 2000);
 };

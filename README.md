@@ -162,3 +162,48 @@ Built with:
 - [Express.js](https://expressjs.com/)
 - [Socket.IO](https://socket.io/)
 - [Google Fonts](https://fonts.google.com/) (Orbitron, Inter)
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/assishmoncs/battlebox.git
+cd battlebox/backend
+npm install
+cp ../.env.example ../.env   # edit ALLOWED_ORIGIN for your domain
+npm start
+# → http://localhost:3000
+```
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and edit the values:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Server listen port |
+| `ALLOWED_ORIGIN` | `http://localhost:3000` | CORS-allowed frontend origin (set to your domain in production) |
+| `NODE_ENV` | `development` | `production` for deployment |
+
+## Running Tests
+
+```bash
+cd backend
+npm test
+```
+
+The test suite covers all 12 game modules with 50+ unit tests.
+
+## Health Check
+
+```
+GET /health
+→ { "status": "ok", "activeRooms": 0, "uptime": 42 }
+```
+
+## Documentation
+
+- [Socket Event Reference](docs/SOCKET_EVENTS.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Contributing Guide](CONTRIBUTING.md)

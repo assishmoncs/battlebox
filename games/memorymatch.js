@@ -1,28 +1,24 @@
+'use strict';
+
+const { buildScores, shuffleArray, endGame } = require('./utils');
+
 const EMOJIS = ['🎮', '🎯', '🎲', '🎸', '🎨', '🎭', '🎪', '🎬'];
 
-function buildScores(room) {
-  return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {});
-}
-
-function shuffleArray(arr) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 function createCardPairs() {
-  const pairs = [...EMOJIS, ...EMOJIS];
-  return shuffleArray(pairs);
+  return shuffleArray([...EMOJIS, ...EMOJIS]);
 }
 
-module.exports = function(roomCode, io, rooms, move) {
+/**
+ * Memory Match
+ * BUG-03 fix: lockBoard flag prevents 3-card illegal state.
+ */
+module.exports = function memorymatch(roomCode, io, rooms, move) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
-  // Initialize game state
+  if (!room.timers) room.timers = {};
+
+  // Initialise
   if (!room.gameState.cards || room.gameState.cards.length === 0) {
     room.gameState.cards = createCardPairs();
     room.gameState.flipped = [];
@@ -30,15 +26,13 @@ module.exports = function(roomCode, io, rooms, move) {
     room.gameState.currentPlayer = 0;
     room.gameState.matches = {};
     room.gameState.totalMatches = 0;
-    room.players.forEach(p => {
-      room.gameState.matches[p.id] = 0;
-    });
+    room.gameState.lockBoard = false;
+    room.players.forEach(p => { room.gameState.matches[p.id] = 0; });
   }
 
   const currentIdx = room.gameState.currentPlayer;
   const currentPlayer = room.players[currentIdx];
 
-  // If no move, just send current state
   if (!move) {
     io.to(roomCode).emit('updateGameState', {
       gameState: room.gameState,
@@ -50,103 +44,87 @@ module.exports = function(roomCode, io, rooms, move) {
   }
 
   const { playerId, cardIndex } = move;
-  
-  // Validate move
+
   if (playerId !== currentPlayer.id) {
     io.to(playerId).emit('error', 'Not your turn');
     return;
   }
 
-  // Check if card is already flipped or matched
+  // BUG-03 fix: reject input while board is locked (processing mismatch animation)
+  if (room.gameState.lockBoard) {
+    io.to(playerId).emit('error', 'Wait for cards to flip back');
+    return;
+  }
+
+  if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= room.gameState.cards.length) {
+    io.to(playerId).emit('error', 'Invalid card index');
+    return;
+  }
+
   if (room.gameState.flipped.includes(cardIndex) || room.gameState.matched.includes(cardIndex)) {
     io.to(playerId).emit('error', 'Card already revealed');
     return;
   }
 
-  // Flip the card
   room.gameState.flipped.push(cardIndex);
 
-  // If 2 cards flipped, check for match
   if (room.gameState.flipped.length === 2) {
-    const [idx1, idx2] = room.gameState.flipped;
-    const card1 = room.gameState.cards[idx1];
-    const card2 = room.gameState.cards[idx2];
+    // Lock board immediately so no third card can be clicked
+    room.gameState.lockBoard = true;
 
-    if (card1 === card2) {
-      // Match found!
+    const [idx1, idx2] = room.gameState.flipped;
+    const isMatch = room.gameState.cards[idx1] === room.gameState.cards[idx2];
+
+    if (isMatch) {
       room.gameState.matched.push(idx1, idx2);
       room.gameState.matches[playerId]++;
       currentPlayer.score += 10;
       room.gameState.totalMatches++;
+      room.gameState.flipped = [];
+      room.gameState.lockBoard = false;
 
       io.to(roomCode).emit('updateGameState', {
         gameState: room.gameState,
         scores: buildScores(room),
-        status: `Match! ${currentPlayer.name} found ${card1} (+10 pts)`,
+        status: `Match! ${currentPlayer.name} found ${room.gameState.cards[idx1]} (+10 pts)`,
         currentPlayerId: currentPlayer.id
       });
 
-      // Clear flipped after delay
-      setTimeout(() => {
-        room.gameState.flipped = [];
-        
-        // Check if game is over (all matches found)
-        if (room.gameState.totalMatches >= 8) {
-          const winner = room.players.reduce((best, p) => 
-            (room.gameState.matches[p.id] || 0) > (room.gameState.matches[best.id] || 0) ? p : best
-          , room.players[0]);
-          
-          io.to(roomCode).emit('updateGameState', {
-            gameState: room.gameState,
-            scores: buildScores(room),
-            status: `Game Over! ${winner.name} wins with ${room.gameState.matches[winner.id]} matches!`
-          });
-          io.to(roomCode).emit('gameOver', { winner: `${winner.name} wins Memory Match!` });
-          room.gameState = {};
-          room.state = 'lobby';
-          return;
-        }
-
-        // Same player gets another turn
-        io.to(roomCode).emit('updateGameState', {
-          gameState: room.gameState,
-          scores: buildScores(room),
-          status: `${currentPlayer.name}'s turn again - Flip a card`,
-          currentPlayerId: currentPlayer.id
-        });
-      }, 1500);
+      if (room.gameState.totalMatches >= EMOJIS.length) {
+        setTimeout(() => endGame(roomCode, io, rooms, 'Memory Match'), 1000);
+      }
     } else {
-      // No match
+      // Mismatch — show for 1 second then flip back
       io.to(roomCode).emit('updateGameState', {
         gameState: room.gameState,
         scores: buildScores(room),
-        status: `No match! ${card1} ≠ ${card2}`,
+        status: `No match! Cards will flip back...`,
         currentPlayerId: currentPlayer.id
       });
 
-      // Clear flipped and switch player after delay
-      setTimeout(() => {
-        room.gameState.flipped = [];
-        room.gameState.currentPlayer = (currentIdx + 1) % room.players.length;
-        const nextPlayer = room.players[room.gameState.currentPlayer];
-        
+      room.timers.memoryFlip = setTimeout(() => {
+        const r = rooms[roomCode];
+        if (!r || r.state !== 'playing') return;
+        r.gameState.flipped = [];
+        r.gameState.lockBoard = false;
+        // Advance to next player
+        r.gameState.currentPlayer = (currentIdx + 1) % r.players.length;
+        const next = r.players[r.gameState.currentPlayer];
         io.to(roomCode).emit('updateGameState', {
-          gameState: room.gameState,
-          scores: buildScores(room),
-          status: `${nextPlayer.name}'s turn - Flip a card`,
-          currentPlayerId: nextPlayer.id
+          gameState: r.gameState,
+          scores: buildScores(r),
+          status: `${next.name}'s turn - Flip a card`,
+          currentPlayerId: next.id
         });
-      }, 1500);
+      }, 1000);
     }
   } else {
-    // Only 1 card flipped, waiting for second
+    // First card flipped
     io.to(roomCode).emit('updateGameState', {
       gameState: room.gameState,
       scores: buildScores(room),
-      status: `${currentPlayer.name} flipped a card - Flip another`,
+      status: `${currentPlayer.name} flipped a card — pick a second`,
       currentPlayerId: currentPlayer.id
     });
   }
-
-  io.to(roomCode).emit('updatePlayers', room.players);
 };
