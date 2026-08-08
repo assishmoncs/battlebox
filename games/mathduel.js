@@ -52,10 +52,12 @@ module.exports = function mathduel(roomCode, io, rooms, answer) {
     return;
   }
 
+  if (!room.timers) room.timers = {};
+
   // Validate answer — must be a number
   const numAnswer = Number(answer);
   if (!Number.isFinite(numAnswer)) {
-    return io.to(roomCode).emit('error', 'Answer must be a number');
+    return io.to(currentPlayer.id).emit('error', 'Answer must be a number');
   }
 
   if (numAnswer === currentQuestion.a) {
@@ -76,7 +78,7 @@ module.exports = function mathduel(roomCode, io, rooms, answer) {
   io.to(roomCode).emit('updatePlayers', room.players);
 
   if (turn >= maxTurns) {
-    setTimeout(() => endGame(roomCode, io, rooms, 'Math Duel'), 2000);
+    room.timers.mathEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Math Duel'), 2000);
     return;
   }
 
@@ -86,7 +88,7 @@ module.exports = function mathduel(roomCode, io, rooms, answer) {
   const next = room.players[room.gameState.currentPlayer];
   const nextQ = room.gameState.questions[room.gameState.turn - 1];
 
-  setTimeout(() => {
+  room.timers.mathNext = setTimeout(() => {
     const r = rooms[roomCode];
     if (!r || r.state !== 'playing') return;
     io.to(roomCode).emit('updateGameState', {

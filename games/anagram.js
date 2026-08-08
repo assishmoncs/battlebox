@@ -88,9 +88,9 @@ module.exports = function anagram(roomCode, io, rooms, guess) {
       status: `❌ Wrong! The word was "${currentWord}". ${nextPlayer.name}'s turn.`,
       currentPlayerId: nextPlayer.id
     });
-    // Advance round anyway so the game progresses
+    if (!room.timers) room.timers = {};
     if (room.gameState.round >= room.gameState.maxRounds) {
-      setTimeout(() => endGame(roomCode, io, rooms, 'Anagram Sprint'), 2000);
+      room.timers.anagramEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Anagram Sprint'), 2000);
     } else {
       room.gameState.round += 1;
     }

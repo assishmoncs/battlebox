@@ -91,7 +91,7 @@ function endGame(roomCode, io, rooms, gameLabel) {
 
   io.to(roomCode).emit('updateGameState', { scores, status: statusMsg, gameState: {} });
   io.to(roomCode).emit('gameOver', { winner: winnerMsg });
-  io.to(roomCode).emit('updatePlayers', room.players);
+  io.to(roomCode).emit('updatePlayers', room.players.map(({ name, score, ready }) => ({ name, score, ready })));
 
   room.gameState = {};
   room.timers = {};

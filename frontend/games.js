@@ -647,10 +647,11 @@ function setupGameListeners() {
     // UX-05 fix: use CSS class toggle instead of inline style
     const resultModal = document.getElementById('resultModal');
     if (resultModal) {
+      resultModal.style.display = 'flex';
       resultModal.classList.remove('hidden');
       resultModal.removeAttribute('hidden');
       const titleEl = document.getElementById('resultTitle');
-      const msgEl   = document.getElementById('resultMsg');
+      const msgEl   = document.getElementById('resultMessage') || document.getElementById('resultMsg');
       if (titleEl) titleEl.textContent = result.winner ? '🏆 Winner!' : "🤝 It's a Tie!";
       if (msgEl)   msgEl.textContent   = result.winner ? result.winner : 'Both players tied — great match!';
     }

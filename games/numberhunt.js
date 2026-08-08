@@ -69,6 +69,7 @@ module.exports = function numberhunt(roomCode, io, rooms, payload) {
   const summary = room.players.map(p => `${p.name}: ${room.gameState.guesses[p.id]}`).join(', ');
   io.to(roomCode).emit('updatePlayers', room.players);
 
+  if (!room.timers) room.timers = {};
   if (room.gameState.round >= room.gameState.maxRounds) {
     io.to(roomCode).emit('updateGameState', {
       // Now safe to reveal target since game is over
@@ -76,7 +77,7 @@ module.exports = function numberhunt(roomCode, io, rooms, payload) {
       scores: buildScores(room),
       status: `Target was ${target}. ${summary}. Game over!`
     });
-    setTimeout(() => endGame(roomCode, io, rooms, 'Number Hunt'), 2000);
+    room.timers.numberhuntEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Number Hunt'), 2000);
     return;
   }
 

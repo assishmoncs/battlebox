@@ -126,7 +126,7 @@ module.exports = function trivia(roomCode, io, rooms, move) {
   if (allAnswered) {
     clearInterval(room.timers.triviaTimer);
     room.timers.triviaTimer = null;
-    setTimeout(() => advanceQuestion(roomCode, io, rooms), 1500);
+    room.timers.triviaAdvance = setTimeout(() => advanceQuestion(roomCode, io, rooms), 1500);
   }
 };
 
@@ -134,8 +134,10 @@ function advanceQuestion(roomCode, io, rooms) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
+  if (!room.timers) room.timers = {};
+
   // BUG-02: always clear timer before state change
-  if (room.timers && room.timers.triviaTimer) {
+  if (room.timers.triviaTimer) {
     clearInterval(room.timers.triviaTimer);
     room.timers.triviaTimer = null;
   }
@@ -156,7 +158,7 @@ function advanceQuestion(roomCode, io, rooms) {
     currentPlayerId: null
   });
 
-  setTimeout(() => {
+  room.timers.triviaNext = setTimeout(() => {
     const r = rooms[roomCode];
     if (!r || r.state !== 'playing') return;
 

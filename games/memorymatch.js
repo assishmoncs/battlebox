@@ -91,7 +91,7 @@ module.exports = function memorymatch(roomCode, io, rooms, move) {
       });
 
       if (room.gameState.totalMatches >= EMOJIS.length) {
-        setTimeout(() => endGame(roomCode, io, rooms, 'Memory Match'), 1000);
+        room.timers.memoryEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Memory Match'), 1000);
       }
     } else {
       // Mismatch — show for 1 second then flip back

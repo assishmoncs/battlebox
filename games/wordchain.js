@@ -83,29 +83,30 @@ function isValidWord(word) {
   return VALID_WORDS.has(word);
 }
 
-module.exports = function wordchain(roomCode, word, io, rooms) {
+module.exports = function wordchain(roomCode, word, io, rooms, playerId) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
+  const currentPlayerIndex = room.gameState.currentPlayer || 0;
+  const currentPlayer = room.players[currentPlayerIndex];
+  const targetSocketId = playerId || (currentPlayer ? currentPlayer.id : roomCode);
+
   if (typeof word !== 'string') {
-    return io.to(roomCode).emit('error', 'Invalid word');
+    return io.to(targetSocketId).emit('error', 'Invalid word');
   }
 
   const cleanWord = word.trim().toLowerCase();
 
   if (cleanWord.length < 2) {
-    return io.to(roomCode).emit('error', 'Word must be at least 2 letters');
+    return io.to(targetSocketId).emit('error', 'Word must be at least 2 letters');
   }
   if (!/^[a-z]+$/.test(cleanWord)) {
-    return io.to(roomCode).emit('error', 'Word must contain only letters');
+    return io.to(targetSocketId).emit('error', 'Word must contain only letters');
   }
 
   if (!room.gameState.chain) room.gameState.chain = [];
   if (!room.gameState.lastLetter) room.gameState.lastLetter = 'a';
   if (!room.gameState.usedWords) room.gameState.usedWords = [];
-
-  const currentPlayerIndex = room.gameState.currentPlayer || 0;
-  const currentPlayer = room.players[currentPlayerIndex];
 
   const nextIdx = (currentPlayerIndex + 1) % room.players.length;
   const nextPlayer = room.players[nextIdx];

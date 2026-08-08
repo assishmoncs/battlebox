@@ -424,13 +424,13 @@ io.on('connection', (socket) => {
         case 'tictactoe':
           if (room.players[gs.currentTurn ?? 0]?.id !== socket.id)
             return socket.emit('error', 'Not your turn');
-          gameModules.tictactoe(roomCode, pos, io, rooms);
+          gameModules.tictactoe(roomCode, pos, io, rooms, socket.id);
           break;
 
         case 'wordchain':
           if (room.players[gs.currentPlayer ?? 0]?.id !== socket.id)
             return socket.emit('error', 'Not your turn');
-          gameModules.wordchain(roomCode, word, io, rooms);
+          gameModules.wordchain(roomCode, word, io, rooms, socket.id);
           break;
 
         case 'mathduel':

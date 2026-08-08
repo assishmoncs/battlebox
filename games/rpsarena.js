@@ -91,13 +91,14 @@ module.exports = function rpsarena(roomCode, io, rooms, move) {
 
   io.to(roomCode).emit('updatePlayers', room.players);
 
+  if (!room.timers) room.timers = {};
   if (round >= maxRounds) {
     io.to(roomCode).emit('updateGameState', {
       gameState: room.gameState,
       scores: buildScores(room),
       status
     });
-    setTimeout(() => endGame(roomCode, io, rooms, 'RPS Arena'), 1500);
+    room.timers.rpsEnd = setTimeout(() => endGame(roomCode, io, rooms, 'RPS Arena'), 1500);
     return;
   }
 
