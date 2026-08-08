@@ -1,183 +1,174 @@
-﻿# BattleBox
+# BattleBox 🎮
 
-BattleBox is a professional multiplayer gaming platform featuring real-time competitive mini-games with a modern cyberpunk-inspired UI.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-v4.8-black.svg)](https://socket.io/)
+[![Express](https://img.shields.io/badge/Express.js-v5.0-lightgrey.svg)](https://expressjs.com/)
 
-## Features
+**BattleBox** is a real-time multiplayer gaming arena featuring **12 competitive mini-games** powered by Node.js, Express, and Socket.IO. Designed with a sleek cyberpunk aesthetic, BattleBox delivers fast-paced, low-latency battles for desktop and mobile browsers.
 
-- **12 Multiplayer Mini-Games** across multiple categories
-- **Real-time Gameplay** powered by Socket.IO
-- **Professional Gaming UI** with neon cyberpunk aesthetic
-- **Lobby Chat System** for player communication
-- **Ready/Unready System** for game coordination
-- **Rematch Functionality** for instant replay
-- **Recent Rooms** for quick rejoining
-- **Responsive Design** for desktop and mobile
+---
 
-## Game Categories
+## 🌟 Key Features
 
-### Speed Games
-- **Reaction Battle** - Test your reflexes, click when it turns green!
-- **Speed Typing** - Race to type words correctly and fast
-- **Color Match** - Stroop effect challenge (click the color, not the word)
+- ⚡ **12 Real-Time Multiplayer Mini-Games**: Across Speed, Strategy, Word, Math, Classic, and Trivia categories.
+- 🔄 **Real-Time Synchronization**: Instant state sync powered by Socket.IO with automatic reconnection grace handling.
+- 🎨 **Modern Cyberpunk UI**: Built with a vibrant dark-mode design system, smooth CSS animations, dynamic scoreboards, and responsive layouts.
+- 💬 **Lobby & In-Game Chat**: Real-time room chat system with server-sanitized player identification.
+- 🎯 **Host Controls & Rematch System**: Coordination tools including player ready states, host delegation, and one-click rematch functionality.
+- 🛡️ **Hardened Security**: Server-side secret isolation, Helmet security headers, rate limiting, and privacy-preserving player list broadcasts.
 
-### Strategy Games
-- **Tic Tac Toe** - Classic 1v1 strategy game
-- **Memory Match** - Find matching pairs in a 4x4 card grid
-- **Simon Says** - Repeat the pattern, gets progressively harder
+---
 
-### Word Games
-- **Word Chain** - Build a chain of words, each starting with the last letter
-- **Anagram Sprint** - Unscramble words under time pressure
+## 🎮 Game Library
 
-### Math Games
-- **Math Duel** - Quick arithmetic challenges
-- **Number Hunt** - Closest guess to the target number wins
+| Game | Category | Description | Players | Rounds / Length |
+| :--- | :--- | :--- | :---: | :---: |
+| **Reaction Battle** ⚡ | Speed | Reflex test — tap the target the instant it turns GREEN! | 2–8 | 5 Rounds |
+| **Speed Typing** ⌨️ | Speed | Type displayed words accurately under time pressure. | 2–8 | 10 Words |
+| **Color Match** 🎨 | Speed | Stroop effect challenge! Select the text COLOR, not the word. | 2–8 | 10 Rounds |
+| **Tic Tac Toe** ⭕ | Strategy | Classic 1v1 turn-based grid battle. | 2 | 1 Game |
+| **Memory Match** 🧩 | Strategy | Flip and match hidden emoji card pairs on a 4x4 grid. | 2–8 | 8 Pairs |
+| **Simon Says** 🎵 | Strategy | Memorize and repeat color sequences that grow each round. | 2–8 | Up to 8 Rounds |
+| **Word Chain** 🔗 | Word | Chain words where each word starts with the previous word's final letter. | 2–8 | 5 Turns / Player |
+| **Anagram Sprint** 🔤 | Word | Unscramble scrambled words under tight time limits. | 2–8 | 10 Puzzles |
+| **Math Duel** 🔢 | Math | Race to solve mental arithmetic challenges correctly. | 2–8 | 12 Turns |
+| **Number Hunt** 🎯 | Math | Submit secret guesses closest to the target number (10–30). | 2–8 | 6 Rounds |
+| **RPS Arena** ✊ | Classic | Multi-round Rock-Paper-Scissors arena with simultaneous reveals. | 2 | 5 Rounds |
+| **Trivia Challenge** ❓ | Trivia | 15 timed trivia questions with speed-weighted scoring. | 2–8 | 15 Questions |
 
-### Classic Games
-- **RPS Arena** - Rock Paper Scissors with multiple rounds
+---
 
-### Trivia Games
-- **Trivia Challenge** - 15-question quiz with categories
+## 🏗️ Architecture & Project Structure
 
-## Project Structure
-
-```
+```text
 battlebox/
 ├── backend/
-│   ├── server.js          # Express + Socket.IO server
-│   └── package.json       # Server dependencies
+│   ├── server.js          # Express server & Socket.IO event orchestrator
+│   ├── package.json       # Backend dependencies & test script runner
+│   └── tests/             # Comprehensive Jest test suite (71 unit tests)
 ├── frontend/
-│   ├── index.html         # Landing page with game selection
-│   ├── lobby.html         # Lobby with chat and player list
-│   ├── game.html          # Active game interface
-│   ├── style.css          # Professional gaming UI styles
-│   ├── script.js          # Landing page logic
-│   └── games.js           # Client-side game logic
-└── games/                 # Server-side game modules
-    ├── reaction.js
-    ├── tictactoe.js
-    ├── wordchain.js
-    ├── mathduel.js
-    ├── rpsarena.js
-    ├── anagram.js
-    ├── numberhunt.js
-    ├── memorymatch.js
-    ├── speedtyping.js
-    ├── colormatch.js
-    ├── simonsays.js
-    └── trivia.js
+│   ├── index.html         # Landing page & game selection grid
+│   ├── lobby.html         # Multiplayer lobby, room code sharing, chat & ready system
+│   ├── game.html          # Dynamic game view & victory/defeat modal
+│   ├── games.js           # Client-side renderer & Socket.IO event listeners
+│   ├── script.js          # Landing page interaction & validation logic
+│   └── style.css          # Cyberpunk design system stylesheet
+├── games/                 # Isolated server-side game modules
+│   ├── utils.js           # Shared game helpers (scoring, timers, winner determination)
+│   ├── reaction.js
+│   ├── tictactoe.js
+│   ├── wordchain.js
+│   ├── mathduel.js
+│   ├── rpsarena.js
+│   ├── anagram.js
+│   ├── numberhunt.js
+│   ├── memorymatch.js
+│   ├── speedtyping.js
+│   ├── colormatch.js
+│   ├── simonsays.js
+│   └── trivia.js
+├── SECURITY.md            # Security policy & responsible disclosure guidelines
+├── CONTRIBUTING.md        # Developer setup & game module contribution guidelines
+└── LICENSE                # MIT License
 ```
 
-## Requirements
+---
 
-- Node.js 18+ (recommended)
-- npm or yarn
+## ⚡ Quick Start Guide
 
-## Quick Start
+### Prerequisites
+- **Node.js** v18.0.0 or higher
+- **npm** v9.0.0 or higher
 
-```bash
-git clone https://github.com/assishmoncs/battlebox.git
-cd battlebox/backend
-npm install
-cp ../.env.example ../.env   # edit ALLOWED_ORIGIN for your domain
-npm start
-# → http://localhost:3000
-```
+### Installation & Run
 
-## How To Play
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/assishmoncs/battlebox.git
+   cd battlebox
+   ```
 
-1. **Enter your gamertag** on the landing page
-2. **Select a game** from the 12 available options
-3. **Create a room** or **join** with a 4-letter room code
-4. **Share the code** with friends to invite them
-5. **Mark as ready** (non-host players)
-6. **Start the battle** when at least 2 players are ready
+2. **Install backend dependencies**:
+   ```bash
+   cd backend
+   npm install
+   ```
 
-## Game Details
+3. **Configure environment variables**:
+   ```bash
+   cp ../.env.example ../.env
+   ```
 
-### Reaction Battle
-Fast-paced reflex test. The circle turns red (wait), then green (click!). Fastest click wins the round. 5 rounds total.
+4. **Start the server**:
+   ```bash
+   npm start
+   ```
 
-### Speed Typing
-Race against opponents to type displayed words. First to correctly type the word gets points. 10 words per game.
+5. **Open in Browser**:
+   Navigate to `http://localhost:3000` to begin playing!
 
-### Color Match
-Stroop effect challenge! Click the button matching the COLOR of the text (not what the text says). 10 rounds.
+---
 
-### Memory Match
-Flip cards to find matching emoji pairs. Find a match, get another turn. Most matches wins.
+## ⚙️ Environment Configuration
 
-### Simon Says
-Watch the pattern of colors, then repeat it. Pattern gets longer each round. Last player standing wins.
-
-### Trivia Challenge
-15 questions across various categories. Faster correct answers = more points. 15-second timer per question.
-
-## Technical Features
-
-- **Anti-cheat measures** in reaction game
-- **Rate limiting** to prevent spam
-- **Reconnection support** for dropped players
-- **In-memory state** (resets on server restart)
-- **Grace period** for accidental disconnections
-- **Automatic room cleanup** for inactive rooms
-
-## Browser Support
-
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 14+
-- Mobile browsers (iOS Safari, Chrome Mobile)
-
-## Development
-
-### Adding a New Game
-
-1. Create a game module in `games/yourgame.js`
-2. Add the game to `backend/server.js` gameModules object
-3. Add UI initialization in `frontend/games.js` initGameUI()
-4. Add socket handler in `backend/server.js` startGame switch
-5. Add game option to `frontend/index.html`
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and edit the values:
+Edit `.env` to configure your deployment environment:
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Server listen port |
-| `ALLOWED_ORIGIN` | `http://localhost:3000` | CORS-allowed frontend origin (set to your domain in production) |
-| `NODE_ENV` | `development` | `production` for deployment |
+| :--- | :--- | :--- |
+| `PORT` | `3000` | HTTP & WebSocket server port |
+| `ALLOWED_ORIGIN` | `http://localhost:3000` | CORS allowed origin (set to production domain in production) |
+| `NODE_ENV` | `development` | Environment mode (`development` \| `production`) |
 
-## Running Tests
+---
+
+## 🧪 Testing
+
+BattleBox features an extensive Jest test suite covering all 12 mini-games, server security, and utility functions:
 
 ```bash
 cd backend
 npm test
 ```
 
-The test suite covers all 12 game modules with 50+ unit tests.
+---
 
-## Health Check
+## 🔍 Health Monitoring
 
-```
+The server exposes a lightweight health check endpoint for uptime monitoring:
+
+```http
 GET /health
-→ { "status": "ok", "activeRooms": 0, "uptime": 42 }
 ```
 
-## Documentation
+**Response**:
+```json
+{
+  "status": "ok",
+  "activeRooms": 3,
+  "uptime": 1420.85
+}
+```
 
-- [Socket Event Reference](docs/SOCKET_EVENTS.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- [Contributing Guide](CONTRIBUTING.md)
+---
 
-## License
+## 🛡️ Security & Privacy Features
 
-MIT License - Feel free to use and modify!
+- **Helmet Protection**: CSP, frame-guard, and XSS protection headers pre-configured.
+- **Server Secret Isolation**: Target answers, trivia keys, and color solutions remain strictly server-side.
+- **Socket ID Stripping**: Player lists strip internal socket connection IDs before room broadcasts.
+- **Rate Limiting**: IP-keyed rate limiting protects socket channels against event flooding.
 
-## Credits
+For detailed information, view our [Security Policy](SECURITY.md).
 
-Built with:
-- [Express.js](https://expressjs.com/)
-- [Socket.IO](https://socket.io/)
-- [Google Fonts](https://fonts.google.com/) (Orbitron, Inter)
+---
+
+## 🤝 Contributing
+
+We welcome community contributions! Please read our [Contributing Guide](CONTRIBUTING.md) to learn about codebase standards, how to add a new game module, and pull request workflows.
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
