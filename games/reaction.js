@@ -1,80 +1,79 @@
-module.exports = function(roomCode, io, rooms) {
-  const room = rooms[roomCode];
-  if (!room || room.state !== 'playing') return;
+'use strict';
 
-  // Clear any existing timeouts
-  if (room.gameState.goTimeoutRef) {
-    clearTimeout(room.gameState.goTimeoutRef);
-  }
-  if (room.gameState.missTimeoutRef) {
-    clearTimeout(room.gameState.missTimeoutRef);
-  }
+const { buildScores, clearAllGameTimers, endGame } = require('./utils');
+
+/**
+ * Reaction Battle – fastest click wins each round.
+ * Fixes: timer leaks on rematch, phantom rounds after gameOver.
+ */
+module.exports = function startReactionRound(roomCode, io, rooms) {
+  const room = rooms[roomCode];
+  if (!room || room.state !== 'playing' || room.game !== 'reaction') return;
+
+  if (!room.timers) room.timers = {};
+
+  // Clear any lingering timers from a prior round
+  clearTimeout(room.timers.reactionGo);
+  clearTimeout(room.timers.reactionMiss);
 
   const waitTime = Math.random() * 3000 + 2000;
   room.gameState.waiting = true;
   room.gameState.canClick = false;
-  room.gameState.clicked = false; // Track if someone already clicked
+  room.gameState.clicked = false;
   room.gameState.round = (room.gameState.round || 0) + 1;
 
   const currentRound = room.gameState.round;
 
   io.to(roomCode).emit('updateGameState', {
-    scores: room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {}),
+    scores: buildScores(room),
     status: `Round ${currentRound}/5 — Get ready…`,
-    gameState: room.gameState
+    gameState: { round: currentRound }
   });
 
-  const goTimeout = setTimeout(() => {
+  room.timers.reactionGo = setTimeout(() => {
     const r = rooms[roomCode];
     if (!r || r.state !== 'playing' || r.gameState.round !== currentRound) return;
+
     r.gameState.waiting = false;
     r.gameState.canClick = true;
     r.gameState.clickTime = Date.now();
+
     io.to(roomCode).emit('updateGameState', {
-      scores: r.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {}),
+      scores: buildScores(r),
       status: 'GO! Click now! 🎯',
-      gameState: r.gameState
+      gameState: { round: currentRound }
     });
 
-    // Miss timeout — nobody clicked
-    const missTimeout = setTimeout(() => {
+    // Miss timeout — nobody clicked in time
+    r.timers.reactionMiss = setTimeout(() => {
       const r2 = rooms[roomCode];
       if (!r2 || !r2.gameState.canClick || r2.gameState.round !== currentRound || r2.gameState.clicked) return;
       r2.gameState.canClick = false;
       io.to(roomCode).emit('updateGameState', {
-        scores: r2.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {}),
+        scores: buildScores(r2),
         status: 'Too slow! Nobody clicked in time.',
-        gameState: r2.gameState
+        gameState: { round: currentRound }
       });
-      nextReactionRound(roomCode, io, rooms);
+      nextReactionRound(roomCode, io, rooms, currentRound);
     }, 3000);
-    
-    r.gameState.missTimeoutRef = missTimeout;
   }, waitTime);
-
-  // Store timeout reference for potential cleanup
-  room.gameState.goTimeoutRef = goTimeout;
 };
 
-function nextReactionRound(roomCode, io, rooms) {
+function nextReactionRound(roomCode, io, rooms, completedRound) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
+  if (room.gameState.round !== completedRound) return; // stale callback guard
 
   if (room.gameState.round >= 5) {
-    const winner = room.players.reduce((prev, curr) => prev.score > curr.score ? prev : curr);
-    const scores = room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {});
-    io.to(roomCode).emit('updateGameState', {
-      scores,
-      status: `Game over! ${winner.name} wins with ${winner.score} points!`,
-      gameState: room.gameState
-    });
-    io.to(roomCode).emit('gameOver', { winner: `${winner.name} wins Reaction Battle!` });
-    io.to(roomCode).emit('updatePlayers', room.players);
-    room.gameState = {};
-    room.state = 'lobby';
+    endGame(roomCode, io, rooms, 'Reaction Battle');
     return;
   }
 
-  module.exports(roomCode, io, rooms);
+  room.timers = room.timers || {};
+  room.timers.reactionNext = setTimeout(() => {
+    module.exports(roomCode, io, rooms);
+  }, 2000);
 }
 
+// Export nextReactionRound so server.js click handler can call it
+module.exports.nextRound = nextReactionRound;

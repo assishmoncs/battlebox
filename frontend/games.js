@@ -1,18 +1,27 @@
-// Client-side game logic and UI
-// Loaded in game.html and lobby.html
+'use strict';
 
+// Client-side game logic and UI
 let currentGame = localStorage.getItem('game') || 'reaction';
 
-// ===== Toast System =====
+// Cached status element – set once in initGameUI to avoid the 12-deep || chain (QUAL-08 fix)
+let _statusEl = null;
+
+function getStatusEl() {
+  return _statusEl || document.getElementById('status');
+}
+
+// ─── Toast System ─────────────────────────────────────────────────────────────
 function showToast(msg, type = 'info', duration = 3000) {
   let container = document.getElementById('toast-container');
   if (!container) {
-    container = document.createElement('div');
+    container    = document.createElement('div');
     container.id = 'toast-container';
     document.body.appendChild(container);
   }
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
   toast.textContent = msg;
   container.appendChild(toast);
   setTimeout(() => {
@@ -21,14 +30,14 @@ function showToast(msg, type = 'info', duration = 3000) {
   }, duration);
 }
 
-// ===== HTML escape utility =====
+// ─── HTML escape ──────────────────────────────────────────────────────────────
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
   );
 }
 
-// ===== Game UI Initialisation =====
+// ─── Game UI Initialisation ───────────────────────────────────────────────────
 function initGameUI(gameType) {
   currentGame = gameType;
   const gameContainer = document.getElementById('gameContainer') || createGameContainer();
@@ -37,220 +46,240 @@ function initGameUI(gameType) {
   switch (gameType) {
     case 'reaction':
       gameContainer.innerHTML = `
-        <div id="reactionGame">
-          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem; text-align: center;">
+        <div id="reactionGame" role="region" aria-label="Reaction Battle game area">
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;text-align:center;">
             Tap the circle the moment it turns <span style="color:var(--success)">GREEN</span>!
           </p>
-          <div id="reactionTarget" onclick="reactionClick()">⏳</div>
-          <div id="reactionStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
+          <div id="reactionTarget" role="button" tabindex="0"
+               aria-label="Click when the circle turns green" onclick="reactionClick()">⏳</div>
+          <div id="reactionStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      // Keyboard support for reaction target
+      document.getElementById('reactionTarget').addEventListener('keypress', e => {
+        if (e.key === 'Enter' || e.key === ' ') reactionClick();
+      });
+      _statusEl = document.getElementById('reactionStatus');
       break;
 
     case 'tictactoe':
       gameContainer.innerHTML = `
-        <div id="tictactoeGame">
-          <div id="board"></div>
-          <div id="tttStatus" class="waiting">Initializing...</div>
-        </div>
-      `;
+        <div id="tictactoeGame" role="region" aria-label="Tic Tac Toe game area">
+          <div id="board" role="grid" aria-label="Tic Tac Toe board"></div>
+          <div id="tttStatus" class="waiting" role="status" aria-live="polite">Initializing...</div>
+        </div>`;
+      _statusEl = document.getElementById('tttStatus');
       initTicTacToeBoard();
       break;
 
     case 'wordchain':
       gameContainer.innerHTML = `
-        <div id="wordchainGame">
-          <div id="wordStatus" class="waiting">Waiting for battle to start...</div>
+        <div id="wordchainGame" role="region" aria-label="Word Chain game area">
+          <div id="wordStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
           <div class="word-chain-input">
-            <input id="wordInput" placeholder="Type a word..." maxlength="30" autocomplete="off" autocapitalize="none">
-            <button onclick="submitWord()">Submit</button>
+            <label for="wordInput" class="sr-only">Enter a word</label>
+            <input id="wordInput" placeholder="Type a word..." maxlength="30"
+                   autocomplete="off" autocapitalize="none" aria-label="Word input">
+            <button onclick="submitWord()" aria-label="Submit word">Submit</button>
           </div>
-          <div id="chainHistory"></div>
-        </div>
-      `;
-      const wordInput = document.getElementById('wordInput');
-      if (wordInput) {
-        wordInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') submitWord();
-        });
-      }
+          <div id="chainHistory" aria-live="polite" aria-label="Word chain history"></div>
+        </div>`;
+      _statusEl = document.getElementById('wordStatus');
+      document.getElementById('wordInput').addEventListener('keypress', e => {
+        if (e.key === 'Enter') submitWord();
+      });
       break;
 
     case 'mathduel':
       gameContainer.innerHTML = `
-        <div id="mathduelGame">
-          <div id="mathPrompt" class="prompt-card">Waiting for question...</div>
+        <div id="mathduelGame" role="region" aria-label="Math Duel game area">
+          <div id="mathPrompt" class="prompt-card" aria-live="polite">Waiting for question...</div>
           <div class="game-input-row">
-            <input id="mathAnswerInput" type="number" placeholder="Your answer" autocomplete="off">
-            <button id="mathAnswerBtn" onclick="submitMathAnswer()">Submit</button>
+            <label for="mathAnswerInput" class="sr-only">Your answer</label>
+            <input id="mathAnswerInput" type="number" inputmode="numeric"
+                   placeholder="Your answer" autocomplete="off" aria-label="Math answer">
+            <button id="mathAnswerBtn" onclick="submitMathAnswer()" aria-label="Submit answer">Submit</button>
           </div>
-          <div id="mathStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
-      {
-        const el = document.getElementById('mathAnswerInput');
-        if (el) el.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitMathAnswer(); });
-      }
+          <div id="mathStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('mathStatus');
+      document.getElementById('mathAnswerInput').addEventListener('keypress', e => {
+        if (e.key === 'Enter') submitMathAnswer();
+      });
       break;
 
     case 'rpsarena':
       gameContainer.innerHTML = `
-        <div id="rpsarenaGame">
-          <div class="choice-grid">
-            <button class="choice-btn" id="rps-rock" onclick="submitRpsChoice('rock')">🪨 Rock</button>
-            <button class="choice-btn" id="rps-paper" onclick="submitRpsChoice('paper')">📄 Paper</button>
-            <button class="choice-btn" id="rps-scissors" onclick="submitRpsChoice('scissors')">✂️ Scissors</button>
+        <div id="rpsarenaGame" role="region" aria-label="Rock Paper Scissors game area">
+          <div class="choice-grid" role="group" aria-label="Choose your move">
+            <button class="choice-btn" id="rps-rock"
+                    aria-label="Choose Rock" onclick="submitRpsChoice('rock')">🪨 Rock</button>
+            <button class="choice-btn" id="rps-paper"
+                    aria-label="Choose Paper" onclick="submitRpsChoice('paper')">📄 Paper</button>
+            <button class="choice-btn" id="rps-scissors"
+                    aria-label="Choose Scissors" onclick="submitRpsChoice('scissors')">✂️ Scissors</button>
           </div>
-          <div id="rpsStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
+          <div id="rpsStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('rpsStatus');
       break;
 
     case 'anagram':
       gameContainer.innerHTML = `
-        <div id="anagramGame">
-          <div id="anagramPrompt" class="prompt-card">Waiting for puzzle...</div>
+        <div id="anagramGame" role="region" aria-label="Anagram Sprint game area">
+          <div id="anagramPrompt" class="prompt-card" aria-live="polite">Waiting for puzzle...</div>
           <div class="game-input-row">
-            <input id="anagramInput" placeholder="Unscrambled word" maxlength="30" autocomplete="off" autocapitalize="none">
-            <button id="anagramBtn" onclick="submitAnagram()">Submit</button>
+            <label for="anagramInput" class="sr-only">Unscrambled word</label>
+            <input id="anagramInput" placeholder="Unscrambled word" maxlength="30"
+                   autocomplete="off" autocapitalize="none" aria-label="Anagram answer">
+            <button id="anagramBtn" onclick="submitAnagram()" aria-label="Submit anagram">Submit</button>
           </div>
-          <div id="anagramStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
-      {
-        const el = document.getElementById('anagramInput');
-        if (el) el.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitAnagram(); });
-      }
+          <div id="anagramStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('anagramStatus');
+      document.getElementById('anagramInput').addEventListener('keypress', e => {
+        if (e.key === 'Enter') submitAnagram();
+      });
       break;
 
     case 'numberhunt':
       gameContainer.innerHTML = `
-        <div id="numberhuntGame">
-          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem; text-align: center;">
+        <div id="numberhuntGame" role="region" aria-label="Number Hunt game area">
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;text-align:center;">
             Guess a number between <strong>10</strong> and <strong>30</strong>
           </p>
           <div class="game-input-row">
-            <input id="numberGuessInput" type="number" min="10" max="30" placeholder="10 - 30" autocomplete="off">
-            <button id="numberGuessBtn" onclick="submitNumberGuess()">Submit</button>
+            <label for="numberGuessInput" class="sr-only">Guess a number</label>
+            <input id="numberGuessInput" type="number" inputmode="numeric"
+                   min="10" max="30" placeholder="10 - 30" autocomplete="off"
+                   aria-label="Number guess between 10 and 30">
+            <button id="numberGuessBtn" onclick="submitNumberGuess()" aria-label="Submit guess">Submit</button>
           </div>
-          <div id="numberStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
-      {
-        const el = document.getElementById('numberGuessInput');
-        if (el) el.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitNumberGuess(); });
-      }
+          <div id="numberStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('numberStatus');
+      document.getElementById('numberGuessInput').addEventListener('keypress', e => {
+        if (e.key === 'Enter') submitNumberGuess();
+      });
       break;
 
     case 'memorymatch':
       gameContainer.innerHTML = `
-        <div id="memorymatchGame">
-          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem; text-align: center;">
+        <div id="memorymatchGame" role="region" aria-label="Memory Match game area">
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;text-align:center;">
             Flip cards to find matching pairs!
           </p>
-          <div id="memoryGrid" class="memory-grid"></div>
-          <div id="memoryStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
+          <div id="memoryGrid" class="memory-grid" role="grid" aria-label="Memory card grid"></div>
+          <div id="memoryStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('memoryStatus');
       break;
 
     case 'speedtyping':
       gameContainer.innerHTML = `
-        <div id="speedtypingGame">
-          <div id="typingDisplay" class="typing-display">Ready...</div>
+        <div id="speedtypingGame" role="region" aria-label="Speed Typing game area">
+          <div id="typingDisplay" class="typing-display" aria-live="polite" aria-label="Word to type">Ready...</div>
           <div class="game-input-row">
-            <input id="typingInput" placeholder="Type the word here..." autocomplete="off" autocapitalize="none">
-            <button id="typingBtn" onclick="submitTyping()">Submit</button>
+            <label for="typingInput" class="sr-only">Type the word shown above</label>
+            <input id="typingInput" placeholder="Type the word here..." autocomplete="off"
+                   autocapitalize="none" aria-label="Typing input">
+            <button id="typingBtn" onclick="submitTyping()" aria-label="Submit typed word">Submit</button>
           </div>
-          <div class="typing-stats">
+          <div class="typing-stats" aria-label="Typing statistics">
             <div class="typing-stat">
-              <div class="typing-stat-value" id="wpmDisplay">0</div>
+              <div class="typing-stat-value" id="wpmDisplay" aria-label="Words per minute">0</div>
               <div class="typing-stat-label">WPM</div>
             </div>
-            <div class="typing-stat">
-              <div class="typing-stat-value" id="accuracyDisplay">100%</div>
-              <div class="typing-stat-label">Accuracy</div>
-            </div>
           </div>
-          <div id="typingStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
-      {
-        const el = document.getElementById('typingInput');
-        if (el) el.addEventListener('keypress', (e) => { if (e.key === 'Enter') submitTyping(); });
-      }
+          <div id="typingStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('typingStatus');
+      document.getElementById('typingInput').addEventListener('keypress', e => {
+        if (e.key === 'Enter') submitTyping();
+      });
       break;
 
     case 'colormatch':
       gameContainer.innerHTML = `
-        <div id="colormatchGame">
-          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem; text-align: center;">
+        <div id="colormatchGame" role="region" aria-label="Color Match game area">
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;text-align:center;">
             Click the <strong>COLOR</strong> of the text, not the word!
           </p>
-          <div id="colorDisplay" class="color-display">Ready</div>
-          <div class="color-options">
-            <button class="color-btn" id="color-red" onclick="submitColorChoice('red')" style="background: #ff3366; color: white;">RED</button>
-            <button class="color-btn" id="color-blue" onclick="submitColorChoice('blue')" style="background: #4488ff; color: white;">BLUE</button>
-            <button class="color-btn" id="color-green" onclick="submitColorChoice('green')" style="background: #00ff88; color: black;">GREEN</button>
-            <button class="color-btn" id="color-yellow" onclick="submitColorChoice('yellow')" style="background: #ffea00; color: black;">YELLOW</button>
+          <div id="colorDisplay" class="color-display" aria-live="polite">Ready</div>
+          <div class="color-options" role="group" aria-label="Color choices">
+            <button class="color-btn" id="color-red"
+                    aria-label="Choose Red" onclick="submitColorChoice('red')"
+                    style="background:#ff3366;color:white;">RED</button>
+            <button class="color-btn" id="color-blue"
+                    aria-label="Choose Blue" onclick="submitColorChoice('blue')"
+                    style="background:#4488ff;color:white;">BLUE</button>
+            <button class="color-btn" id="color-green"
+                    aria-label="Choose Green" onclick="submitColorChoice('green')"
+                    style="background:#00ff88;color:black;">GREEN</button>
+            <button class="color-btn" id="color-yellow"
+                    aria-label="Choose Yellow" onclick="submitColorChoice('yellow')"
+                    style="background:#ffea00;color:black;">YELLOW</button>
           </div>
-          <div id="colorStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
+          <div id="colorStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('colorStatus');
       break;
 
     case 'simonsays':
       gameContainer.innerHTML = `
-        <div id="simonsaysGame">
-          <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem; text-align: center;">
+        <div id="simonsaysGame" role="region" aria-label="Simon Says game area">
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;text-align:center;">
             Watch the pattern, then repeat it!
           </p>
-          <div class="simon-grid">
-            <button class="simon-btn red" id="simon-red" onclick="submitSimonChoice('red')"></button>
-            <button class="simon-btn blue" id="simon-blue" onclick="submitSimonChoice('blue')"></button>
-            <button class="simon-btn green" id="simon-green" onclick="submitSimonChoice('green')"></button>
-            <button class="simon-btn yellow" id="simon-yellow" onclick="submitSimonChoice('yellow')"></button>
+          <div class="simon-grid" role="group" aria-label="Simon color buttons">
+            <button class="simon-btn red"    id="simon-red"
+                    aria-label="Red button"    onclick="submitSimonChoice('red')"></button>
+            <button class="simon-btn blue"   id="simon-blue"
+                    aria-label="Blue button"   onclick="submitSimonChoice('blue')"></button>
+            <button class="simon-btn green"  id="simon-green"
+                    aria-label="Green button"  onclick="submitSimonChoice('green')"></button>
+            <button class="simon-btn yellow" id="simon-yellow"
+                    aria-label="Yellow button" onclick="submitSimonChoice('yellow')"></button>
           </div>
-          <div id="simonStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
+          <div id="simonStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('simonStatus');
       break;
 
     case 'trivia':
       gameContainer.innerHTML = `
-        <div id="triviaGame">
-          <div id="triviaQuestion" class="trivia-question">Waiting for question...</div>
-          <div class="trivia-timer">
-            <div class="trivia-timer-bar" id="triviaTimerBar" style="width: 100%;"></div>
+        <div id="triviaGame" role="region" aria-label="Trivia Challenge game area">
+          <div id="triviaQuestion" class="trivia-question" aria-live="polite">Waiting for question...</div>
+          <div class="trivia-timer" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="15">
+            <div class="trivia-timer-bar" id="triviaTimerBar" style="width:100%;"></div>
           </div>
-          <div id="triviaOptions" class="trivia-options">
-            <button class="trivia-option" onclick="submitTriviaChoice(0)">Option A</button>
-            <button class="trivia-option" onclick="submitTriviaChoice(1)">Option B</button>
-            <button class="trivia-option" onclick="submitTriviaChoice(2)">Option C</button>
-            <button class="trivia-option" onclick="submitTriviaChoice(3)">Option D</button>
+          <div id="triviaOptions" class="trivia-options" role="group" aria-label="Answer options">
+            <button class="trivia-option" onclick="submitTriviaChoice(0)" aria-label="Option A">Option A</button>
+            <button class="trivia-option" onclick="submitTriviaChoice(1)" aria-label="Option B">Option B</button>
+            <button class="trivia-option" onclick="submitTriviaChoice(2)" aria-label="Option C">Option C</button>
+            <button class="trivia-option" onclick="submitTriviaChoice(3)" aria-label="Option D">Option D</button>
           </div>
-          <div id="triviaStatus" class="waiting">Waiting for battle to start...</div>
-        </div>
-      `;
+          <div id="triviaStatus" class="waiting" role="status" aria-live="polite">Waiting for battle to start...</div>
+        </div>`;
+      _statusEl = document.getElementById('triviaStatus');
       break;
   }
 }
 
 function createGameContainer() {
   const container = document.createElement('div');
-  container.id = 'gameContainer';
+  container.id    = 'gameContainer';
   document.body.appendChild(container);
   return container;
 }
 
-// ===== Reaction Game =====
+// ─── Reaction Game ────────────────────────────────────────────────────────────
 function reactionClick() {
   const target = document.getElementById('reactionTarget');
   if (!target || !target.classList.contains('go')) return;
   socket.emit('reactionClick', localStorage.getItem('room'));
 }
 
-// ===== Tic Tac Toe =====
+// ─── Tic Tac Toe ──────────────────────────────────────────────────────────────
 function initTicTacToeBoard() {
   const board = document.getElementById('board');
   if (!board) return;
@@ -259,7 +288,14 @@ function initTicTacToeBoard() {
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.dataset.index = i;
+    cell.setAttribute('role', 'gridcell');
+    cell.setAttribute('tabindex', '0');
+    cell.setAttribute('aria-label', `Cell ${i + 1}, empty`);
     cell.onclick = () => socket.emit('gameMove', { room: localStorage.getItem('room'), pos: i });
+    cell.addEventListener('keypress', e => {
+      if (e.key === 'Enter' || e.key === ' ')
+        socket.emit('gameMove', { room: localStorage.getItem('room'), pos: i });
+    });
     board.appendChild(cell);
   }
 }
@@ -271,30 +307,26 @@ function updateTicTacToe(board) {
     if (cell.textContent !== newMark) {
       setTimeout(() => {
         cell.textContent = newMark;
+        cell.setAttribute('aria-label', `Cell ${i + 1}, ${newMark || 'empty'}`);
         cell.className = 'cell' + (newMark === 'X' ? ' x-mark updated' : newMark === 'O' ? ' o-mark updated' : '');
       }, 80);
     }
   });
 }
 
-// ===== Word Chain =====
+// ─── Word Chain ───────────────────────────────────────────────────────────────
 function submitWord() {
   const wordInput = document.getElementById('wordInput');
   if (!wordInput) return;
   const word = wordInput.value.trim().toLowerCase();
-  if (!word) {
-    showToast('Please type a word first!', 'warning');
-    return;
-  }
-  if (!/^[a-z]+$/.test(word)) {
-    showToast('Only letters allowed!', 'warning');
-    return;
-  }
+  if (!word) return showToast('Please type a word first!', 'warning');
+  if (!/^[a-z]+$/.test(word)) return showToast('Only letters allowed!', 'warning');
   socket.emit('gameMove', { room: localStorage.getItem('room'), word });
   wordInput.value = '';
   wordInput.focus();
 }
 
+// ─── Math Duel ────────────────────────────────────────────────────────────────
 function submitMathAnswer() {
   const input = document.getElementById('mathAnswerInput');
   if (!input) return;
@@ -304,10 +336,12 @@ function submitMathAnswer() {
   input.value = '';
 }
 
+// ─── RPS ──────────────────────────────────────────────────────────────────────
 function submitRpsChoice(choice) {
   socket.emit('gameMove', { room: localStorage.getItem('room'), choice });
 }
 
+// ─── Anagram ──────────────────────────────────────────────────────────────────
 function submitAnagram() {
   const input = document.getElementById('anagramInput');
   if (!input) return;
@@ -317,6 +351,7 @@ function submitAnagram() {
   input.value = '';
 }
 
+// ─── Number Hunt ─────────────────────────────────────────────────────────────
 function submitNumberGuess() {
   const input = document.getElementById('numberGuessInput');
   if (!input) return;
@@ -327,7 +362,7 @@ function submitNumberGuess() {
   socket.emit('gameMove', { room: localStorage.getItem('room'), guess });
 }
 
-// ===== Memory Match =====
+// ─── Memory Match ─────────────────────────────────────────────────────────────
 function submitMemoryCard(cardIndex) {
   socket.emit('gameMove', { room: localStorage.getItem('room'), cardIndex });
 }
@@ -335,24 +370,43 @@ function submitMemoryCard(cardIndex) {
 function updateMemoryGrid(gameState) {
   const grid = document.getElementById('memoryGrid');
   if (!grid || !gameState.cards) return;
-  
+
   grid.innerHTML = '';
   gameState.cards.forEach((card, index) => {
-    const cardEl = document.createElement('div');
-    cardEl.className = 'memory-card';
-    if (gameState.flipped.includes(index) || gameState.matched.includes(index)) {
+    const cardEl       = document.createElement('div');
+    cardEl.className   = 'memory-card';
+    const isFlipped    = gameState.flipped && gameState.flipped.includes(index);
+    const isMatched    = gameState.matched && gameState.matched.includes(index);
+    const isLocked     = gameState.lockBoard;
+
+    if (isFlipped || isMatched) {
       cardEl.classList.add('flipped');
       cardEl.textContent = card;
     }
-    if (gameState.matched.includes(index)) {
-      cardEl.classList.add('matched');
+    if (isMatched) cardEl.classList.add('matched');
+
+    // UX-02 fix: keyboard and ARIA support for memory cards
+    cardEl.setAttribute('role', 'button');
+    cardEl.setAttribute('tabindex', isMatched ? '-1' : '0');
+    cardEl.setAttribute('aria-label',
+      isMatched ? `Matched: ${card}` :
+      (isFlipped ? `Flipped: ${card}` : `Card ${index + 1}, face down`));
+    cardEl.setAttribute('aria-pressed', isFlipped || isMatched ? 'true' : 'false');
+
+    if (!isMatched && !isLocked) {
+      cardEl.onclick = () => submitMemoryCard(index);
+      cardEl.addEventListener('keypress', e => {
+        if (e.key === 'Enter' || e.key === ' ') submitMemoryCard(index);
+      });
+    } else {
+      cardEl.style.pointerEvents = 'none';
     }
-    cardEl.onclick = () => submitMemoryCard(index);
+
     grid.appendChild(cardEl);
   });
 }
 
-// ===== Speed Typing =====
+// ─── Speed Typing ─────────────────────────────────────────────────────────────
 function submitTyping() {
   const input = document.getElementById('typingInput');
   if (!input) return;
@@ -362,7 +416,7 @@ function submitTyping() {
   input.value = '';
 }
 
-// ===== Color Match =====
+// ─── Color Match ──────────────────────────────────────────────────────────────
 function submitColorChoice(color) {
   socket.emit('gameMove', { room: localStorage.getItem('room'), color });
 }
@@ -370,12 +424,11 @@ function submitColorChoice(color) {
 function updateColorDisplay(display) {
   const displayEl = document.getElementById('colorDisplay');
   if (!displayEl || !display) return;
-  
   displayEl.textContent = display.word;
   displayEl.style.color = display.color;
 }
 
-// ===== Simon Says =====
+// ─── Simon Says ───────────────────────────────────────────────────────────────
 function submitSimonChoice(color) {
   socket.emit('gameMove', { room: localStorage.getItem('room'), sequence: [color] });
 }
@@ -384,32 +437,37 @@ function playSimonSequence(sequence) {
   sequence.forEach((color, index) => {
     setTimeout(() => {
       const btn = document.getElementById(`simon-${color}`);
-      if (btn) {
-        btn.classList.add('active');
-        setTimeout(() => btn.classList.remove('active'), 300);
-      }
+      if (!btn) return;
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      setTimeout(() => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+      }, 300);
     }, index * 600);
   });
 }
 
-// ===== Trivia =====
+// ─── Trivia ───────────────────────────────────────────────────────────────────
 function submitTriviaChoice(option) {
   socket.emit('gameMove', { room: localStorage.getItem('room'), option });
 }
 
 function updateTriviaQuestion(question, options) {
-  const questionEl = document.getElementById('triviaQuestion');
+  const questionEl      = document.getElementById('triviaQuestion');
   const optionsContainer = document.getElementById('triviaOptions');
-  
   if (questionEl) questionEl.textContent = question;
   if (optionsContainer && options) {
-    optionsContainer.innerHTML = options.map((opt, i) => 
-      `<button class="trivia-option" onclick="submitTriviaChoice(${i})">${escapeHtml(opt)}</button>`
+    optionsContainer.innerHTML = options.map((opt, i) =>
+      `<button class="trivia-option" onclick="submitTriviaChoice(${i})"
+               aria-label="Option ${String.fromCharCode(65 + i)}: ${escapeHtml(opt)}">
+         ${escapeHtml(opt)}
+       </button>`
     ).join('');
   }
 }
 
-// ===== Word Chain UI Update =====
+// ─── Word Chain UI Update ─────────────────────────────────────────────────────
 function updateWordChain(gameState) {
   const chainHistory = document.getElementById('chainHistory');
   if (chainHistory && gameState.chain && gameState.chain.length > 0) {
@@ -424,14 +482,14 @@ function updateWordChain(gameState) {
   }
 }
 
-// ===== Scoreboard =====
+// ─── Scoreboard ───────────────────────────────────────────────────────────────
 function updateScoreboard(scores) {
   const sb = document.getElementById('scoreboard');
   if (!sb) return;
-  const entries = Object.entries(scores).sort(([, a], [, b]) => b - a);
-  if (entries.length === 0) { sb.innerHTML = ''; return; }
+  const entries  = Object.entries(scores).sort(([, a], [, b]) => b - a);
+  if (!entries.length) { sb.innerHTML = ''; return; }
   const maxScore = Math.max(...entries.map(([, s]) => s), 1);
-  const medals = ['🥇', '🥈', '🥉'];
+  const medals   = ['🥇', '🥈', '🥉'];
   sb.innerHTML = `
     <div class="scoreboard-title">Scoreboard</div>
     ${entries.map(([name, score], i) => `
@@ -442,56 +500,23 @@ function updateScoreboard(scores) {
           <div class="score-bar" style="width:${Math.round((score / maxScore) * 100)}%"></div>
         </div>
         <span class="score-value">${score}</span>
-      </div>
-    `).join('')}
-  `;
+      </div>`).join('')}`;
 }
 
-// ===== Socket Listeners =====
+// ─── Socket Listeners ─────────────────────────────────────────────────────────
 function setupGameListeners() {
   socket.on('updateGameState', (state) => {
-    // Determine status element for current page
-    const statusEl =
-      document.getElementById('reactionStatus') ||
-      document.getElementById('tttStatus') ||
-      document.getElementById('wordStatus') ||
-      document.getElementById('mathStatus') ||
-      document.getElementById('rpsStatus') ||
-      document.getElementById('anagramStatus') ||
-      document.getElementById('numberStatus') ||
-      document.getElementById('memoryStatus') ||
-      document.getElementById('typingStatus') ||
-      document.getElementById('colorStatus') ||
-      document.getElementById('simonStatus') ||
-      document.getElementById('triviaStatus') ||
-      document.getElementById('status');
+    // QUAL-08 fix: use cached status element (set at initGameUI time), not a 12-entry || chain
+    const statusEl = getStatusEl();
 
     if (statusEl && state.status !== undefined) {
       statusEl.textContent = state.status;
-      statusEl.className = statusEl.id || 'status'; // reset classes
-
-      // Determine turn state
-      const myId = socket.id;
-      const isReaction = currentGame === 'reaction';
-      const isGo = isReaction && state.status && state.status.includes('GO');
-      let yourTurn = false;
-
-      if (state.currentPlayerId) {
-        yourTurn = state.currentPlayerId === myId;
-      } else if (isReaction) {
-        yourTurn = isGo;
-      }
-
-      if (yourTurn) {
-        statusEl.classList.add('your-turn');
-      } else if (state.currentPlayerId) {
-        statusEl.classList.add('opponent-turn');
-      } else {
-        statusEl.classList.add('waiting');
-      }
+      const isYourTurn = state.currentPlayerId && state.currentPlayerId === socket.id;
+      const isGo = currentGame === 'reaction' && state.status && state.status.includes('GO');
+      statusEl.className = (statusEl.id || 'status') + (isYourTurn || isGo ? ' your-turn' : state.currentPlayerId ? ' opponent-turn' : ' waiting');
     }
 
-    // Reaction: toggle target circle
+    // Reaction
     const reactionTarget = document.getElementById('reactionTarget');
     if (reactionTarget && currentGame === 'reaction') {
       const isGo = state.status && state.status.includes('GO');
@@ -499,101 +524,88 @@ function setupGameListeners() {
       reactionTarget.textContent = isGo ? '🎯' : '⏳';
     }
 
-    // Tic Tac Toe board update
+    // Tic Tac Toe
     if (currentGame === 'tictactoe' && state.gameState && state.gameState.board) {
       updateTicTacToe(state.gameState.board);
     }
 
-    // Word Chain update
+    // Word Chain
     if (currentGame === 'wordchain' && state.gameState) {
       updateWordChain(state.gameState);
       const wordInput = document.getElementById('wordInput');
       const submitBtn = wordInput ? wordInput.nextElementSibling : null;
       const myTurn = state.currentPlayerId === socket.id;
-      if (wordInput) wordInput.disabled = !myTurn;
-      if (submitBtn) submitBtn.disabled = !myTurn;
+      if (wordInput) { wordInput.disabled = !myTurn; }
+      if (submitBtn) { submitBtn.disabled = !myTurn; }
     }
 
+    // Math Duel
     if (currentGame === 'mathduel' && state.gameState) {
       const prompt = document.getElementById('mathPrompt');
-      if (prompt && state.gameState.prompt) {
-        prompt.textContent = `Solve: ${state.gameState.prompt}`;
-      }
+      if (prompt && state.gameState.prompt) prompt.textContent = `Solve: ${state.gameState.prompt}`;
       const input = document.getElementById('mathAnswerInput');
-      const btn = document.getElementById('mathAnswerBtn');
+      const btn   = document.getElementById('mathAnswerBtn');
       const myTurn = state.currentPlayerId === socket.id;
       if (input) input.disabled = !myTurn;
-      if (btn) btn.disabled = !myTurn;
+      if (btn)   btn.disabled   = !myTurn;
       if (myTurn && input) input.focus();
     }
 
+    // RPS Arena
     if (currentGame === 'rpsarena') {
-      const choices = state.gameState && state.gameState.choices ? state.gameState.choices : {};
-      const locked = !!choices[socket.id];
+      const choices = (state.gameState && state.gameState.choices) ? state.gameState.choices : {};
+      const locked  = !!choices[socket.id];
       ['rps-rock', 'rps-paper', 'rps-scissors'].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.disabled = locked;
       });
     }
 
+    // Anagram
     if (currentGame === 'anagram' && state.gameState) {
       const prompt = document.getElementById('anagramPrompt');
-      if (prompt && state.gameState.scrambled) {
-        prompt.textContent = `Unscramble: ${state.gameState.scrambled}`;
-      }
-      const input = document.getElementById('anagramInput');
-      const btn = document.getElementById('anagramBtn');
+      if (prompt && state.gameState.scrambled) prompt.textContent = `Unscramble: ${state.gameState.scrambled}`;
+      const input  = document.getElementById('anagramInput');
+      const btn    = document.getElementById('anagramBtn');
       const myTurn = state.currentPlayerId === socket.id;
       if (input) input.disabled = !myTurn;
-      if (btn) btn.disabled = !myTurn;
+      if (btn)   btn.disabled   = !myTurn;
       if (myTurn && input) input.focus();
     }
 
+    // Number Hunt
     if (currentGame === 'numberhunt' && state.gameState) {
-      const input = document.getElementById('numberGuessInput');
-      const btn = document.getElementById('numberGuessBtn');
+      const input   = document.getElementById('numberGuessInput');
+      const btn     = document.getElementById('numberGuessBtn');
       const guesses = state.gameState.guesses || {};
-      const locked = guesses[socket.id] !== undefined;
+      const locked  = guesses[socket.id] !== undefined;
       if (input) input.disabled = locked;
-      if (btn) btn.disabled = locked;
+      if (btn)   btn.disabled   = locked;
     }
 
     // Memory Match
     if (currentGame === 'memorymatch' && state.gameState) {
       updateMemoryGrid(state.gameState);
-      const myTurn = state.currentPlayerId === socket.id;
-      const cards = document.querySelectorAll('.memory-card');
-      cards.forEach(card => {
-        card.style.pointerEvents = myTurn ? 'auto' : 'none';
-      });
     }
 
     // Speed Typing
     if (currentGame === 'speedtyping' && state.gameState) {
       const display = document.getElementById('typingDisplay');
-      if (display && state.gameState.currentWord) {
-        display.textContent = state.gameState.currentWord;
-      }
+      if (display && state.gameState.currentWord) display.textContent = state.gameState.currentWord;
       const input = document.getElementById('typingInput');
       if (input && state.gameState.completed) {
-        const completed = state.gameState.completed[socket.id] || 0;
-        input.disabled = completed > 0;
+        const done = state.gameState.completed[socket.id] || 0;
+        input.disabled = done > 0;
       }
-      if (state.gameState.wpm !== undefined) {
-        document.getElementById('wpmDisplay').textContent = state.gameState.wpm;
-      }
-      if (state.gameState.accuracy !== undefined) {
-        document.getElementById('accuracyDisplay').textContent = state.gameState.accuracy + '%';
-      }
+      const wpmEl = document.getElementById('wpmDisplay');
+      if (wpmEl && state.gameState.wpm !== undefined) wpmEl.textContent = state.gameState.wpm;
     }
 
     // Color Match
     if (currentGame === 'colormatch' && state.gameState) {
-      if (state.gameState.currentDisplay) {
-        updateColorDisplay(state.gameState.currentDisplay);
-      }
+      if (state.gameState.currentDisplay) updateColorDisplay(state.gameState.currentDisplay);
       const answered = state.gameState.answered || {};
-      const locked = answered[socket.id] !== undefined;
+      const locked   = answered[socket.id] !== undefined;
       ['color-red', 'color-blue', 'color-green', 'color-yellow'].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.disabled = locked;
@@ -605,10 +617,8 @@ function setupGameListeners() {
       if (state.gameState.showingSequence && state.gameState.sequence) {
         playSimonSequence(state.gameState.sequence);
       }
-      const myTurn = state.currentPlayerId === socket.id;
-      const simonBtns = document.querySelectorAll('.simon-btn');
-      simonBtns.forEach(btn => {
-        btn.disabled = !myTurn || state.gameState.showingSequence;
+      document.querySelectorAll('.simon-btn').forEach(btn => {
+        btn.disabled = state.gameState.showingSequence;
       });
     }
 
@@ -617,31 +627,46 @@ function setupGameListeners() {
       if (state.gameState.question && state.gameState.options) {
         updateTriviaQuestion(state.gameState.question, state.gameState.options);
       }
-      if (state.gameState.timer !== undefined) {
-        const timerBar = document.getElementById('triviaTimerBar');
-        if (timerBar) {
-          timerBar.style.width = `${(state.gameState.timer / 15) * 100}%`;
-        }
+      const timerBar = document.getElementById('triviaTimerBar');
+      if (timerBar && state.gameState.timer !== undefined) {
+        timerBar.style.width = `${(state.gameState.timer / 15) * 100}%`;
+        timerBar.parentElement.setAttribute('aria-valuenow', state.gameState.timer);
       }
       const answered = state.gameState.answered || {};
-      const triviaOptions = document.querySelectorAll('.trivia-option');
-      triviaOptions.forEach((btn, i) => {
+      document.querySelectorAll('.trivia-option').forEach(btn => {
         btn.disabled = answered[socket.id] !== undefined;
       });
     }
 
-    // Scoreboard
     if (state.scores) updateScoreboard(state.scores);
   });
 
+  // ─── Game Over ──────────────────────────────────────────────────────────────
   socket.on('gameOver', (result) => {
-    const statusEl = document.getElementById('status');
+    const statusEl = getStatusEl();
+    // UX-05 fix: use CSS class toggle instead of inline style
+    const resultModal = document.getElementById('resultModal');
+    if (resultModal) {
+      resultModal.style.display = 'flex';
+      resultModal.classList.remove('hidden');
+      resultModal.removeAttribute('hidden');
+      const titleEl = document.getElementById('resultTitle');
+      const msgEl   = document.getElementById('resultMessage') || document.getElementById('resultMsg');
+      if (titleEl) titleEl.textContent = result.winner ? '🏆 Winner!' : "🤝 It's a Tie!";
+      if (msgEl)   msgEl.textContent   = result.winner ? result.winner : 'Both players tied — great match!';
+    }
+
     if (statusEl) {
       statusEl.textContent = result.winner ? `Winner: ${result.winner}` : "It's a tie!";
-      statusEl.className = result.winner ? 'status success' : 'status waiting';
+      statusEl.className   = (statusEl.id || 'status') + (result.winner ? ' success' : ' waiting');
     }
-    showToast(result.winner ? `Winner: ${result.winner}` : "It's a tie!", result.winner ? 'success' : 'info', 3000);
-    
+
+    showToast(
+      result.winner ? `🏆 ${result.winner}` : "🤝 It's a tie!",
+      result.winner ? 'success' : 'info',
+      3000
+    );
+
     // Disable all game inputs
     document.querySelectorAll('input, button').forEach(el => {
       if (!el.classList.contains('btn-primary') && !el.classList.contains('btn-secondary')) {
@@ -652,32 +677,18 @@ function setupGameListeners() {
 
   socket.on('rematchAvailable', () => {
     showToast('Rematch available! Returning to lobby...', 'success');
-    setTimeout(() => window.location.href = 'lobby.html', 2000);
+    setTimeout(() => { window.location.href = 'lobby.html'; }, 2000);
   });
 
   socket.on('error', (msg) => {
     showToast(msg, 'error');
-    const statusEl =
-      document.getElementById('reactionStatus') ||
-      document.getElementById('tttStatus') ||
-      document.getElementById('wordStatus') ||
-      document.getElementById('mathStatus') ||
-      document.getElementById('rpsStatus') ||
-      document.getElementById('anagramStatus') ||
-      document.getElementById('numberStatus') ||
-      document.getElementById('memoryStatus') ||
-      document.getElementById('typingStatus') ||
-      document.getElementById('colorStatus') ||
-      document.getElementById('simonStatus') ||
-      document.getElementById('triviaStatus') ||
-      document.getElementById('status');
+    const statusEl = getStatusEl();
     if (statusEl) {
       statusEl.textContent = msg;
-      statusEl.className = (statusEl.id || 'status') + ' error';
+      statusEl.className   = (statusEl.id || 'status') + ' error';
     }
-    // Redirect if room is gone
     if (msg === 'Room not found') {
-      setTimeout(() => window.location.href = 'index.html', 2500);
+      setTimeout(() => { window.location.href = 'index.html'; }, 2500);
     }
   });
 }

@@ -1,6 +1,12 @@
+'use strict';
+
+const { buildScores, shuffleArray, endGame } = require('./utils');
+
 const WORDS = [
   'planet', 'socket', 'banana', 'rocket', 'winter', 'hunter',
-  'market', 'silver', 'garden', 'throne', 'orange', 'forest'
+  'market', 'silver', 'garden', 'throne', 'orange', 'forest',
+  'castle', 'bridge', 'temple', 'stream', 'breeze', 'candle',
+  'puzzle', 'gravel', 'pillow', 'mirror', 'window', 'sunset'
 ];
 
 function shuffleWord(word) {
@@ -8,7 +14,7 @@ function shuffleWord(word) {
   if (new Set(word).size < 2) return word;
 
   let out = word;
-  for (let attempts = 0; attempts < 8 && out === word; attempts++) {
+  for (let attempts = 0; attempts < 10 && out === word; attempts++) {
     const arr = word.split('');
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -16,34 +22,10 @@ function shuffleWord(word) {
     }
     out = arr.join('');
   }
-
-  if (out === word) {
-    const arr = word.split('');
-    let i = 0;
-    while (i + 1 < arr.length && arr[i] === arr[i + 1]) i++;
-    if (i + 1 < arr.length) {
-      [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
-      out = arr.join('');
-    }
-  }
-
   return out;
 }
 
-function buildScores(room) {
-  return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score }), {});
-}
-
-function shuffleArray(arr) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-module.exports = function(roomCode, io, rooms, guess) {
+module.exports = function anagram(roomCode, io, rooms, guess) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
@@ -58,7 +40,6 @@ module.exports = function(roomCode, io, rooms, guess) {
   const currentIdx = room.gameState.currentPlayer;
   const currentPlayer = room.players[currentIdx];
   const currentWord = room.gameState.roundWords[room.gameState.round - 1];
-  if (!currentWord || !currentPlayer) return;
 
   if (!guess) {
     const scrambled = shuffleWord(currentWord);
@@ -66,48 +47,52 @@ module.exports = function(roomCode, io, rooms, guess) {
     io.to(roomCode).emit('updateGameState', {
       gameState: { ...room.gameState, scrambled },
       scores: buildScores(room),
-      status: `${currentPlayer.name}'s turn — Unscramble: ${scrambled}`,
+      status: `${currentPlayer.name}'s turn — unscramble: ${scrambled}`,
       currentPlayerId: currentPlayer.id
     });
     return;
   }
 
   const cleanGuess = String(guess).trim().toLowerCase();
-  if (!cleanGuess) {
-    io.to(currentPlayer.id).emit('error', 'Type your guess first');
-    return;
-  }
 
-  const correct = cleanGuess === currentWord;
-  if (correct) currentPlayer.score += 6;
-
-  const nextRound = room.gameState.round + 1;
-  if (nextRound > room.gameState.maxRounds) {
-    const winner = room.players.reduce((best, p) => p.score > best.score ? p : best, room.players[0]);
+  if (cleanGuess === currentWord) {
+    currentPlayer.score += 10;
     io.to(roomCode).emit('updatePlayers', room.players);
+
+    if (room.gameState.round >= room.gameState.maxRounds) {
+      endGame(roomCode, io, rooms, 'Anagram Sprint');
+      return;
+    }
+
+    room.gameState.round += 1;
+    room.gameState.currentPlayer = (currentIdx + 1) % room.players.length;
+    const nextPlayer = room.players[room.gameState.currentPlayer];
+    const nextWord = room.gameState.roundWords[room.gameState.round - 1];
+    const scrambled = shuffleWord(nextWord);
+    room.gameState.scrambled = scrambled;
+
+    io.to(roomCode).emit('updateGameState', {
+      gameState: { ...room.gameState, scrambled },
+      scores: buildScores(room),
+      status: `✅ Correct! +10 pts. ${nextPlayer.name}'s turn — unscramble: ${scrambled}`,
+      currentPlayerId: nextPlayer.id
+    });
+  } else {
+    // Wrong guess — skip turn
+    const nextIdx = (currentIdx + 1) % room.players.length;
+    room.gameState.currentPlayer = nextIdx;
+    const nextPlayer = room.players[nextIdx];
     io.to(roomCode).emit('updateGameState', {
       gameState: room.gameState,
       scores: buildScores(room),
-      status: `Game over! ${winner.name} wins Anagram Sprint with ${winner.score} points!`
+      status: `❌ Wrong! The word was "${currentWord}". ${nextPlayer.name}'s turn.`,
+      currentPlayerId: nextPlayer.id
     });
-    io.to(roomCode).emit('gameOver', { winner: `${winner.name} wins Anagram Sprint!` });
-    room.gameState = {};
-    room.state = 'lobby';
-    return;
+    if (!room.timers) room.timers = {};
+    if (room.gameState.round >= room.gameState.maxRounds) {
+      room.timers.anagramEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Anagram Sprint'), 2000);
+    } else {
+      room.gameState.round += 1;
+    }
   }
-
-  room.gameState.round = nextRound;
-  room.gameState.currentPlayer = (currentIdx + 1) % room.players.length;
-  const nextWord = room.gameState.roundWords[nextRound - 1];
-  const nextPlayer = room.players[room.gameState.currentPlayer];
-  const nextScrambled = shuffleWord(nextWord);
-  room.gameState.scrambled = nextScrambled;
-
-  io.to(roomCode).emit('updatePlayers', room.players);
-  io.to(roomCode).emit('updateGameState', {
-    gameState: { ...room.gameState, scrambled: nextScrambled },
-    scores: buildScores(room),
-    status: `${correct ? '✅ Correct' : `❌ Wrong (answer: ${currentWord})`}. ${nextPlayer.name}'s turn — Unscramble: ${nextScrambled}`,
-    currentPlayerId: nextPlayer.id
-  });
 };

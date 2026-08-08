@@ -65,9 +65,15 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="games.js"></script>
 <script>
-const socket = io();
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000
+});
 let room = localStorage.getItem('room');
 let gameType = localStorage.getItem('game') || 'reaction';
+let isHost = false;
 
 const GAME_LABELS = { 
   reaction: 'Reaction Battle', tictactoe: 'Tic Tac Toe', wordchain: 'Word Chain', 
@@ -168,6 +174,16 @@ function requestRematch() {
   socket.emit('requestRematch', room);
 }
 
+socket.on('youAreHost', () => {
+  isHost = true;
+});
+
+socket.on('roomInfo', ({ hostName: serverHostName }) => {
+  if (serverHostName && serverHostName === playerName) {
+    isHost = true;
+  }
+});
+
 socket.on('updatePlayers', players => {
   updateScoreboard(players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {}));
 });
@@ -196,6 +212,13 @@ socket.on('gameOver', (result) => {
   const isVictory = result.winner && result.winner.includes(playerName);
   showResult(result.winner, isVictory);
   
+  // Disable all game inputs
+  document.querySelectorAll('input, button').forEach(el => {
+    if (!el.classList.contains('btn-primary') && !el.classList.contains('btn-secondary')) {
+      el.disabled = true;
+    }
+  });
+
   document.getElementById('gameControls').style.display = 'block';
 });
 </script>

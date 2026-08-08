@@ -1,33 +1,47 @@
+'use strict';
+
+const { buildScores, endGame } = require('./utils');
+
 const COLORS = [
-  { name: 'RED', value: 'red', hex: '#ff3366' },
-  { name: 'BLUE', value: 'blue', hex: '#4488ff' },
-  { name: 'GREEN', value: 'green', hex: '#00ff88' },
+  { name: 'RED',    value: 'red',    hex: '#ff3366' },
+  { name: 'BLUE',   value: 'blue',   hex: '#4488ff' },
+  { name: 'GREEN',  value: 'green',  hex: '#00ff88' },
   { name: 'YELLOW', value: 'yellow', hex: '#ffea00' }
 ];
-
-function buildScores(room) {
-  return room.players.reduce((acc, p) => ({ ...acc, [p.name]: p.score || 0 }), {});
-}
 
 function getRandomColor() {
   return COLORS[Math.floor(Math.random() * COLORS.length)];
 }
 
+/**
+ * Color Match (Stroop effect)
+ * SEC-05 fix: correctAnswer is NEVER sent to clients.
+ */
 function generateDisplay() {
-  const wordColor = getRandomColor();
-  const textColor = getRandomColor();
+  const wordColor  = getRandomColor();
+  const textColor  = getRandomColor();
   return {
-    word: wordColor.name,
-    color: textColor.hex,
-    correctAnswer: textColor.value
+    // Safe to send: word text and display colour
+    word:          wordColor.name,
+    color:         textColor.hex,
+    // Private: only kept server-side, never emitted
+    _correctAnswer: textColor.value
   };
 }
 
-module.exports = function(roomCode, io, rooms, move) {
+function safeDisplay(display) {
+  // Strip the private field before broadcasting
+  const { _correctAnswer, ...safe } = display;
+  return safe;
+}
+
+module.exports = function colormatch(roomCode, io, rooms, move) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
 
-  // Initialize game state
+  if (!room.timers) room.timers = {};
+
+  // Initialise
   if (!room.gameState.round) {
     room.gameState.round = 1;
     room.gameState.maxRounds = 10;
@@ -36,14 +50,14 @@ module.exports = function(roomCode, io, rooms, move) {
     room.gameState.currentDisplay = generateDisplay();
   }
 
-  // If no move, send current display
   if (!move) {
     room.gameState.roundStartTime = Date.now();
     room.gameState.answered = {};
     room.gameState.currentDisplay = generateDisplay();
-    
+
+    // SEC-05: send safeDisplay only
     io.to(roomCode).emit('updateGameState', {
-      gameState: room.gameState,
+      gameState: { ...room.gameState, currentDisplay: safeDisplay(room.gameState.currentDisplay) },
       scores: buildScores(room),
       status: `Round ${room.gameState.round}/${room.gameState.maxRounds} - Click the COLOR of the text!`,
       currentPlayerId: null
@@ -55,77 +69,55 @@ module.exports = function(roomCode, io, rooms, move) {
   const player = room.players.find(p => p.id === playerId);
   if (!player) return;
 
-  // Check if player already answered
   if (room.gameState.answered[playerId] !== undefined) {
     io.to(playerId).emit('error', 'You already answered');
     return;
   }
 
-  // Record answer time
+  // Validate color is a known value
+  const validColors = COLORS.map(c => c.value);
+  if (!validColors.includes(color)) {
+    io.to(playerId).emit('error', 'Invalid color choice');
+    return;
+  }
+
   const answerTime = Date.now() - room.gameState.roundStartTime;
-  const isCorrect = color === room.gameState.currentDisplay.correctAnswer;
+  const isCorrect = color === room.gameState.currentDisplay._correctAnswer;
 
-  room.gameState.answered[playerId] = {
-    correct: isCorrect,
-    time: answerTime
-  };
+  room.gameState.answered[playerId] = { correct: isCorrect, time: answerTime };
 
-  // Award points for correct answer
   if (isCorrect) {
-    // Faster = more points (max 10, min 5)
     const points = Math.max(5, Math.round(10 - answerTime / 500));
     player.score += points;
   }
 
   io.to(roomCode).emit('updatePlayers', room.players);
 
-  // Check if all players answered
   const allAnswered = room.players.every(p => room.gameState.answered[p.id] !== undefined);
-
-  if (allAnswered) {
-    // Show results
-    const correctColor = COLORS.find(c => c.value === room.gameState.currentDisplay.correctAnswer);
-    const results = room.players.map(p => {
-      const ans = room.gameState.answered[p.id];
-      return `${p.name}: ${ans.correct ? '✓' : '✗'}`;
-    }).join(', ');
-
-    setTimeout(() => {
-      room.gameState.round++;
-
-      if (room.gameState.round > room.gameState.maxRounds) {
-        // Game over
-        const winner = room.players.reduce((best, p) => p.score > best.score ? p : best, room.players[0]);
-        io.to(roomCode).emit('updateGameState', {
-          gameState: room.gameState,
-          scores: buildScores(room),
-          status: `Game Over! ${winner.name} wins Color Match with ${winner.score} points!`
-        });
-        io.to(roomCode).emit('gameOver', { winner: `${winner.name} wins Color Match!` });
-        room.gameState = {};
-        room.state = 'lobby';
-        return;
-      }
-
-      // Next round
-      room.gameState.currentDisplay = generateDisplay();
-      room.gameState.answered = {};
-      room.gameState.roundStartTime = Date.now();
-
-      io.to(roomCode).emit('updateGameState', {
-        gameState: room.gameState,
-        scores: buildScores(room),
-        status: `Round ${room.gameState.round}/${room.gameState.maxRounds} - Click the COLOR! (${results})`,
-        currentPlayerId: null
-      });
-    }, 2000);
-  } else {
-    const answeredCount = Object.keys(room.gameState.answered).length;
+  if (!allAnswered) {
     io.to(roomCode).emit('updateGameState', {
-      gameState: room.gameState,
+      gameState: { ...room.gameState, currentDisplay: safeDisplay(room.gameState.currentDisplay) },
       scores: buildScores(room),
-      status: `${answeredCount}/${room.players.length} answered...`,
+      status: `${Object.keys(room.gameState.answered).length}/${room.players.length} answered`,
       currentPlayerId: null
     });
+    return;
   }
+
+  if (room.gameState.round >= room.gameState.maxRounds) {
+    endGame(roomCode, io, rooms, 'Color Match');
+    return;
+  }
+
+  room.gameState.round += 1;
+  room.gameState.answered = {};
+  room.gameState.roundStartTime = Date.now();
+  room.gameState.currentDisplay = generateDisplay();
+
+  io.to(roomCode).emit('updateGameState', {
+    gameState: { ...room.gameState, currentDisplay: safeDisplay(room.gameState.currentDisplay) },
+    scores: buildScores(room),
+    status: `Round ${room.gameState.round}/${room.gameState.maxRounds} - Click the COLOR of the text!`,
+    currentPlayerId: null
+  });
 };

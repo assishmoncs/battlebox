@@ -1,4 +1,4 @@
-# BattleBox
+﻿# BattleBox
 
 BattleBox is a professional multiplayer gaming platform featuring real-time competitive mini-games with a modern cyberpunk-inspired UI.
 
@@ -75,19 +75,14 @@ battlebox/
 
 ## Quick Start
 
-1. **Install Dependencies**
-   ```bash
-   cd backend/
-   npm install
-   ```
-
-2. **Start the Server**
-   ```bash
-   node server.js
-   ```
-
-3. **Open in Browser**
-   Navigate to http://localhost:3000
+```bash
+git clone https://github.com/assishmoncs/battlebox.git
+cd battlebox/backend
+npm install
+cp ../.env.example ../.env   # edit ALLOWED_ORIGIN for your domain
+npm start
+# → http://localhost:3000
+```
 
 ## How To Play
 
@@ -144,13 +139,37 @@ Watch the pattern of colors, then repeat it. Pattern gets longer each round. Las
 4. Add socket handler in `backend/server.js` startGame switch
 5. Add game option to `frontend/index.html`
 
-### Environment Variables
+## Environment Variables
 
-Create a `.env` file in the backend directory (optional):
+Copy `.env.example` to `.env` and edit the values:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Server listen port |
+| `ALLOWED_ORIGIN` | `http://localhost:3000` | CORS-allowed frontend origin (set to your domain in production) |
+| `NODE_ENV` | `development` | `production` for deployment |
+
+## Running Tests
+
+```bash
+cd backend
+npm test
 ```
-PORT=3000
-NODE_ENV=development
+
+The test suite covers all 12 game modules with 50+ unit tests.
+
+## Health Check
+
 ```
+GET /health
+→ { "status": "ok", "activeRooms": 0, "uptime": 42 }
+```
+
+## Documentation
+
+- [Socket Event Reference](docs/SOCKET_EVENTS.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
+- [Contributing Guide](CONTRIBUTING.md)
 
 ## License
 
