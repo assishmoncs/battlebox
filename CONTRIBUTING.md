@@ -1,146 +1,59 @@
 # Contributing to BattleBox
 
-Thank you for your interest in contributing to BattleBox! We welcome pull requests, bug reports, game suggestions, and documentation improvements.
+BattleBox is a server-authoritative real-time multiplayer platform. Contributions should preserve deterministic game state, safe payload handling, accessibility, and timer cleanup.
 
-Please take a moment to review this document before submitting your contribution.
+## Development
 
----
-
-## 🛠️ Development Setup
-
-1. **Fork and Clone**:
-   ```bash
-   git clone https://github.com/your-username/battlebox.git
-   cd battlebox
-   ```
-
-2. **Install Dependencies**:
-   ```bash
-   cd backend
-   npm install
-   ```
-
-3. **Configure Environment**:
-   ```bash
-   cp ../.env.example ../.env
-   ```
-
-4. **Run the Test Suite**:
-   ```bash
-   npm test
-   ```
-
-5. **Start the Local Development Server**:
-   ```bash
-   node server.js
-   # Or using nodemon if installed globally: nodemon server.js
-   ```
-
----
-
-## 🎮 How to Add a New Mini-Game
-
-BattleBox is built with a modular architecture that makes adding new mini-games straightforward:
-
-### Step 1: Create the Server-Side Module (`games/yourgame.js`)
-Create a new file in `games/yourgame.js` following the standard game signature:
-
-```javascript
-'use strict';
-
-const { buildScores, endGame } = require('./utils');
-
-module.exports = function yourgame(roomCode, io, rooms, move) {
-  const room = rooms[roomCode];
-  if (!room || room.state !== 'playing') return;
-
-  if (!room.timers) room.timers = {};
-
-  // 1. Initialize state on first invocation
-  if (!room.gameState.round) {
-    room.gameState.round = 1;
-    room.gameState.maxRounds = 5;
-  }
-
-  // 2. Initial prompt broadcast if no move provided
-  if (!move) {
-    io.to(roomCode).emit('updateGameState', {
-      gameState: room.gameState,
-      scores: buildScores(room),
-      status: `Round ${room.gameState.round}/5 - Make your move!`,
-      currentPlayerId: null
-    });
-    return;
-  }
-
-  // 3. Process move & validate player input
-  const { playerId, choice } = move;
-  const player = room.players.find(p => p.id === playerId);
-  if (!player) return;
-
-  // 4. Update scores & advance game state
-  player.score += 10;
-  io.to(roomCode).emit('updatePlayers', room.players.map(({ name, score, ready }) => ({ name, score, ready })));
-
-  // 5. Handle game completion
-  if (room.gameState.round >= room.gameState.maxRounds) {
-    room.timers.gameEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Your Game Name'), 1500);
-    return;
-  }
-};
+```bash
+git clone https://github.com/your-username/battlebox.git
+cd battlebox/backend
+npm ci
+npm test
+npm run syntax
+npm start
 ```
 
-### Step 2: Register in `backend/server.js`
-1. Require the game in `gameModules`:
-   ```javascript
-   const gameModules = {
-     // ...
-     yourgame: require('../games/yourgame')
-   };
-   ```
-2. Define default initial state in `initialGameStates`:
-   ```javascript
-   const initialGameStates = {
-     // ...
-     yourgame: () => ({ round: 1, maxRounds: 5 })
-   };
-   ```
-3. Add a dispatch case in `socket.on('gameMove')`:
-   ```javascript
-   case 'yourgame':
-     gameModules.yourgame(roomCode, io, rooms, { playerId: socket.id, choice });
-     break;
-   ```
+## Adding a game
 
-### Step 3: Add Client-Side UI in `frontend/games.js` & `frontend/index.html`
-1. Add game card to the selection grid in `frontend/index.html`.
-2. Add a rendering block in `initGameUI(gameType)` switch in `frontend/games.js`.
-3. Add event handlers in `setupGameListeners()` in `frontend/games.js`.
+1. Add the server module under `games/`.
+2. Register it in `games/registry.js` with metadata, player limits, module path, and initial state.
+3. Add a client renderer when the existing renderer does not cover the game.
+4. Validate all game-specific moves on the server.
+5. Keep hidden answers/targets/unrevealed state off the wire.
+6. Store every timer in `room.timers` so rematches and disconnect cleanup can cancel it.
+7. Add unit tests for initialization, valid/invalid moves, turns, scoring, completion, and timer behavior.
 
-### Step 4: Write Unit Tests (`backend/tests/yourgame.test.js`)
-Add unit tests verifying move validation, scoring logic, and game completion.
+## Coding standards
 
----
+- Use `'use strict';`.
+- Use `const`/`let`; never `var`.
+- Prefer small functions with one responsibility.
+- Keep identity server-authoritative.
+- Reject malformed or oversized payloads early.
+- Broadcast only client-safe game state.
+- Interactive controls must have keyboard/focus support and accessible labels.
+- Never commit secrets or `.env` files.
 
-## 📏 Coding Standards & Security Rules
+## Verification
 
-- **Strict Mode**: Place `'use strict';` at the top of all JavaScript files.
-- **Variable Scoping**: Use `const` and `let` exclusively (never `var`).
-- **Secret Isolation**: **Never** broadcast hidden answers, target solutions, or secret keys in `updateGameState` payloads.
-- **Targeted Errors**: Emit input validation errors to the specific player socket (`io.to(playerId).emit('error', ...)`), not the entire room channel.
-- **Timer Safety**: Always assign `setTimeout` handles into `room.timers` so they can be cleaned up cleanly on room resets.
-- **Privacy**: Strip internal socket IDs (`safePlayerList`) when broadcasting player lists to room clients.
-- **Accessibility**: Ensure all interactive elements include `aria-label` attributes and keyboard event listeners (`Enter`/`Space`).
+Every pull request should pass:
 
----
+```bash
+cd backend
+npm ci
+npm run syntax
+npm test -- --runInBand
+npm audit --omit=dev --audit-level=high
+```
 
-## 📋 Pull Request Checklist
+The GitHub Actions workflow runs these checks automatically for pushes and pull requests.
 
-Before submitting your pull request, please ensure:
+## Pull request checklist
 
-- [ ] `npm test` passes 100% cleanly without errors.
-- [ ] Code follows existing project style and structure.
-- [ ] No secret values or solution keys are broadcast to clients.
-- [ ] Keyboard navigation and accessibility labels are included for UI elements.
-- [ ] New unit tests cover your game logic or bug fix.
-- [ ] Documentation (`README.md`) is updated if a new game or feature is added.
+- [ ] Tests pass.
+- [ ] Syntax check passes.
+- [ ] No hidden game state is broadcast.
+- [ ] Timer handles are cleaned up.
+- [ ] New game metadata is registered.
+- [ ] README/docs are updated when behavior changes.
+- [ ] Mobile and keyboard behavior has been checked.
