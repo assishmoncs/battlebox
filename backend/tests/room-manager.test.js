@@ -3,41 +3,42 @@
 const { RoomManager, ROOM_STATES } = require('../room-manager');
 
 jest.useFakeTimers();
-
 afterEach(() => jest.clearAllTimers());
 
 describe('RoomManager', () => {
-  test('creates unique four-character rooms', () => {
+  test('creates unique four-character rooms and returns a session token', () => {
     const manager = new RoomManager();
-    const room = manager.create('reaction', { id: 'a', sessionId: 's1', name: 'Alice', score: 0, ready: false });
-    expect(room).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/);
-    expect(manager.get(room).state).toBe(ROOM_STATES.LOBBY);
+    const result = manager.create('reaction', { id:'a', sessionId:'s1', name:'Alice', score:0, ready:false });
+    expect(result.code).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/);
+    expect(result.sessionId).toBe('s1');
+    expect(manager.get(result.code).state).toBe(ROOM_STATES.LOBBY);
   });
 
   test('rejects duplicate names and room overflow', () => {
-    const manager = new RoomManager({ maxPlayers: 2 });
-    const code = manager.create('reaction', { id: 'a', sessionId: 's1', name: 'Alice', score: 0, ready: false });
-    expect(manager.addPlayer(code, { id: 'b', sessionId: 's2', name: 'Alice', score: 0, ready: false }).ok).toBe(false);
-    expect(manager.addPlayer(code, { id: 'b', sessionId: 's2', name: 'Bob', score: 0, ready: false }).ok).toBe(true);
-    expect(manager.addPlayer(code, { id: 'c', sessionId: 's3', name: 'Carol', score: 0, ready: false }).ok).toBe(false);
+    const manager = new RoomManager({ maxPlayers:2 });
+    const code = manager.create('reaction', { id:'a', sessionId:'s1', name:'Alice', score:0, ready:false }).code;
+    expect(manager.addPlayer(code, { id:'b', sessionId:'s2', name:'Alice', score:0, ready:false }).ok).toBe(false);
+    expect(manager.addPlayer(code, { id:'b', sessionId:'s2', name:'Bob', score:0, ready:false }).ok).toBe(true);
+    expect(manager.addPlayer(code, { id:'c', sessionId:'s3', name:'Carol', score:0, ready:false }).ok).toBe(false);
   });
 
-  test('supports reconnect within the grace period', () => {
-    const manager = new RoomManager({ reconnectGraceMs: 15000 });
-    const code = manager.create('reaction', { id: 'old', sessionId: 'stable', name: 'Alice', score: 12, ready: true });
+  test('supports reconnect only with the matching session token', () => {
+    const manager = new RoomManager({ reconnectGraceMs:15000 });
+    const code = manager.create('reaction', { id:'old', sessionId:'stable', name:'Alice', score:12, ready:true }).code;
     manager.removeSocket('old');
     jest.advanceTimersByTime(5000);
-    const result = manager.rejoin(code, 'Alice', 'new');
+    expect(manager.rejoin(code, 'wrong-token', 'Alice', 'new').ok).toBe(false);
+    const result = manager.rejoin(code, 'stable', 'Alice', 'new');
     expect(result.ok).toBe(true);
     expect(manager.get(code).players[0].id).toBe('new');
     expect(manager.get(code).players[0].score).toBe(12);
   });
 
   test('transfers host when host leaves after grace period', () => {
-    const manager = new RoomManager({ reconnectGraceMs: 1000 });
-    const code = manager.create('reaction', { id: 'a', sessionId: 's1', name: 'Alice', score: 0, ready: false });
-    manager.addPlayer(code, { id: 'b', sessionId: 's2', name: 'Bob', score: 0, ready: false });
-    const events = [];
+    const manager = new RoomManager({ reconnectGraceMs:1000 });
+    const code = manager.create('reaction', { id:'a', sessionId:'s1', name:'Alice', score:0, ready:false }).code;
+    manager.addPlayer(code, { id:'b', sessionId:'s2', name:'Bob', score:0, ready:false });
+    const events=[];
     manager.removeSocket('a', event => events.push(event));
     jest.advanceTimersByTime(1000);
     expect(manager.get(code).host).toBe('b');
