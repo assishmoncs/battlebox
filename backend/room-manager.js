@@ -27,26 +27,12 @@ class RoomManager {
   create(game, player) {
     const code = this.generateCode();
     const now = Date.now();
-    this.rooms[code] = {
-      game,
-      host: player.id,
-      players: [player],
-      state: ROOM_STATES.LOBBY,
-      gameState: {},
-      timers: {},
-      createdAt: now,
-      startedAt: null
-    };
+    this.rooms[code] = { game, host: player.id, players: [player], state: ROOM_STATES.LOBBY, gameState: {}, timers: {}, createdAt: now, startedAt: null };
     return code;
   }
 
-  get(code) {
-    return this.rooms[code];
-  }
-
-  has(code) {
-    return !!this.rooms[code];
-  }
+  get(code) { return this.rooms[code]; }
+  has(code) { return !!this.rooms[code]; }
 
   addPlayer(code, player) {
     const room = this.get(code);
@@ -104,6 +90,7 @@ class RoomManager {
         delete this.disconnectTimers[socketId];
         const current = this.get(code);
         if (!current || !current.players.some(p => p.id === socketId)) return;
+        const wasHost = current.host === socketId;
         current.players = current.players.filter(p => p.id !== socketId);
         if (current.players.length === 0) {
           clearAllGameTimers(current);
@@ -111,15 +98,16 @@ class RoomManager {
           onChange?.({ type: 'room_deleted', code });
           return;
         }
-        if (current.host === socketId) current.host = current.players[0].id;
+        if (wasHost) current.host = current.players[0].id;
         if (current.state === ROOM_STATES.PLAYING && current.players.length < 2) {
           clearAllGameTimers(current);
           current.state = ROOM_STATES.LOBBY;
           current.gameState = {};
           current.timers = {};
-          onChange?.({ type: 'game_aborted', code, room: current });
+          onChange?.({ type: 'game_aborted', code, room: current, hostChanged: wasHost });
+          return;
         }
-        onChange?.({ type: 'player_removed', code, room: current });
+        onChange?.({ type: 'player_removed', code, room: current, hostChanged: wasHost });
       }, this.reconnectGraceMs);
     }
   }
