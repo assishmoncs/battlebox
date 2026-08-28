@@ -8,18 +8,21 @@ function createCardPairs() {
   return shuffleArray([...EMOJIS, ...EMOJIS]);
 }
 
-/**
- * Memory Match
- * BUG-03 fix: lockBoard flag prevents 3-card illegal state.
- */
+function publicState(state) {
+  const visible = new Set([...(state.flipped || []), ...(state.matched || [])]);
+  return {
+    ...state,
+    cards: Array.isArray(state.cards) ? state.cards.map((card, index) => visible.has(index) ? card : null) : []
+  };
+}
+
+/** Memory Match with server-authoritative hidden-card state. */
 module.exports = function memorymatch(roomCode, io, rooms, move) {
   const room = rooms[roomCode];
   if (!room || room.state !== 'playing') return;
-
   if (!room.timers) room.timers = {};
 
-  // Initialise
-  if (!room.gameState.cards || room.gameState.cards.length === 0) {
+  if (!Array.isArray(room.gameState.cards) || room.gameState.cards.length === 0) {
     room.gameState.cards = createCardPairs();
     room.gameState.flipped = [];
     room.gameState.matched = [];
@@ -32,10 +35,11 @@ module.exports = function memorymatch(roomCode, io, rooms, move) {
 
   const currentIdx = room.gameState.currentPlayer;
   const currentPlayer = room.players[currentIdx];
+  if (!currentPlayer) return;
 
   if (!move) {
     io.to(roomCode).emit('updateGameState', {
-      gameState: room.gameState,
+      gameState: publicState(room.gameState),
       scores: buildScores(room),
       status: `${currentPlayer.name}'s turn - Flip a card`,
       currentPlayerId: currentPlayer.id
@@ -44,34 +48,15 @@ module.exports = function memorymatch(roomCode, io, rooms, move) {
   }
 
   const { playerId, cardIndex } = move;
-
-  if (playerId !== currentPlayer.id) {
-    io.to(playerId).emit('error', 'Not your turn');
-    return;
-  }
-
-  // BUG-03 fix: reject input while board is locked (processing mismatch animation)
-  if (room.gameState.lockBoard) {
-    io.to(playerId).emit('error', 'Wait for cards to flip back');
-    return;
-  }
-
-  if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= room.gameState.cards.length) {
-    io.to(playerId).emit('error', 'Invalid card index');
-    return;
-  }
-
-  if (room.gameState.flipped.includes(cardIndex) || room.gameState.matched.includes(cardIndex)) {
-    io.to(playerId).emit('error', 'Card already revealed');
-    return;
-  }
+  if (playerId !== currentPlayer.id) return io.to(playerId).emit('error', 'Not your turn');
+  if (room.gameState.lockBoard) return io.to(playerId).emit('error', 'Wait for cards to flip back');
+  if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= room.gameState.cards.length) return io.to(playerId).emit('error', 'Invalid card index');
+  if (room.gameState.flipped.includes(cardIndex) || room.gameState.matched.includes(cardIndex)) return io.to(playerId).emit('error', 'Card already revealed');
 
   room.gameState.flipped.push(cardIndex);
 
   if (room.gameState.flipped.length === 2) {
-    // Lock board immediately so no third card can be clicked
     room.gameState.lockBoard = true;
-
     const [idx1, idx2] = room.gameState.flipped;
     const isMatch = room.gameState.cards[idx1] === room.gameState.cards[idx2];
 
@@ -82,36 +67,29 @@ module.exports = function memorymatch(roomCode, io, rooms, move) {
       room.gameState.totalMatches++;
       room.gameState.flipped = [];
       room.gameState.lockBoard = false;
-
       io.to(roomCode).emit('updateGameState', {
-        gameState: room.gameState,
+        gameState: publicState(room.gameState),
         scores: buildScores(room),
         status: `Match! ${currentPlayer.name} found ${room.gameState.cards[idx1]} (+10 pts)`,
         currentPlayerId: currentPlayer.id
       });
-
-      if (room.gameState.totalMatches >= EMOJIS.length) {
-        room.timers.memoryEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Memory Match'), 1000);
-      }
+      if (room.gameState.totalMatches >= EMOJIS.length) room.timers.memoryEnd = setTimeout(() => endGame(roomCode, io, rooms, 'Memory Match'), 1000);
     } else {
-      // Mismatch — show for 1 second then flip back
       io.to(roomCode).emit('updateGameState', {
-        gameState: room.gameState,
+        gameState: publicState(room.gameState),
         scores: buildScores(room),
-        status: `No match! Cards will flip back...`,
+        status: 'No match! Cards will flip back...',
         currentPlayerId: currentPlayer.id
       });
-
       room.timers.memoryFlip = setTimeout(() => {
         const r = rooms[roomCode];
         if (!r || r.state !== 'playing') return;
         r.gameState.flipped = [];
         r.gameState.lockBoard = false;
-        // Advance to next player
         r.gameState.currentPlayer = (currentIdx + 1) % r.players.length;
         const next = r.players[r.gameState.currentPlayer];
         io.to(roomCode).emit('updateGameState', {
-          gameState: r.gameState,
+          gameState: publicState(r.gameState),
           scores: buildScores(r),
           status: `${next.name}'s turn - Flip a card`,
           currentPlayerId: next.id
@@ -119,9 +97,8 @@ module.exports = function memorymatch(roomCode, io, rooms, move) {
       }, 1000);
     }
   } else {
-    // First card flipped
     io.to(roomCode).emit('updateGameState', {
-      gameState: room.gameState,
+      gameState: publicState(room.gameState),
       scores: buildScores(room),
       status: `${currentPlayer.name} flipped a card — pick a second`,
       currentPlayerId: currentPlayer.id
