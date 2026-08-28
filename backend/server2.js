@@ -4,10 +4,10 @@ require('dotenv').config();
 
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
 const crypto = require('crypto');
 const path = require('path');
 const helmet = require('helmet');
+const { Server } = require('socket.io');
 const { RoomManager } = require('./room-manager');
 const { definitions, modules, initialGameStates, getGame } = require('../games/registry');
 const { clearAllGameTimers, buildScores } = require('../games/utils');
@@ -136,8 +136,10 @@ io.on('connection', socket => {
       const game = getGame(payload.game); const name = sanitizeName(payload.playerName);
       if (!game) return ack?.({ ok: false, error: 'Invalid game type' });
       if (!name) return ack?.({ ok: false, error: 'Gamertag must be 2–20 characters and use letters, numbers, spaces, hyphens or underscores' });
-      const code = roomManager.create(game.id, { id: socket.id, sessionId: crypto.randomUUID(), name, score: 0, ready: false });
-      socket.join(code); ack?.({ ok: true, room: code }); socket.emit('youAreHost', true); broadcastRoom(code);
+      const sessionId = crypto.randomUUID();
+      const created = roomManager.create(game.id, { id: socket.id, sessionId, name, score: 0, ready: false });
+      socket.join(created.code);
+      ack?.({ ok: true, room: created.code, sessionId }); socket.emit('youAreHost', true); broadcastRoom(created.code);
     } catch (error) { console.error('[createRoom]', error); ack?.({ ok: false, error: 'Server error' }); }
   });
 
@@ -146,12 +148,20 @@ io.on('connection', socket => {
       if (!rateLimit(`join:${ip}`, 20, 60000)) return emitError(socket, 'Too many join attempts');
       if (!isPlainObject(payload) || !payloadSizeOk(payload)) return emitError(socket, 'Invalid payload');
       const code = normalizeRoom(payload.room); const name = sanitizeName(payload.playerName);
+      const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId.trim() : '';
       if (!code || !name) return emitError(socket, 'Invalid room code or gamertag');
       const room = roomManager.get(code); if (!room) return emitError(socket, 'Room not found');
       const game = getGame(room.game); if (!game) return emitError(socket, 'Unknown game');
-      const isRejoin = room.players.some(p => p.name.toLowerCase() === name.toLowerCase());
-      if (isRejoin) { const result = roomManager.rejoin(code, name, socket.id); if (!result.ok) return emitError(socket, result.error); }
-      else { if (room.state === 'playing') return emitError(socket, 'Game already in progress'); if (room.players.length >= game.maxPlayers) return emitError(socket, `Room is full (max ${game.maxPlayers} players)`); const result = roomManager.addPlayer(code, { id: socket.id, sessionId: crypto.randomUUID(), name, score: 0, ready: false }); if (!result.ok) return emitError(socket, result.error); }
+      const isRejoin = !!sessionId && room.players.some(p => p.sessionId === sessionId && p.name.toLowerCase() === name.toLowerCase());
+      const nameTaken = room.players.some(p => p.name.toLowerCase() === name.toLowerCase());
+      if (isRejoin) {
+        const result = roomManager.rejoin(code, sessionId, name, socket.id); if (!result.ok) return emitError(socket, result.error);
+      } else {
+        if (nameTaken) return emitError(socket, 'That gamertag is already in the room. Use the original session to reconnect.');
+        if (room.state === 'playing') return emitError(socket, 'Game already in progress');
+        if (room.players.length >= game.maxPlayers) return emitError(socket, `Room is full (max ${game.maxPlayers} players)`);
+        const result = roomManager.addPlayer(code, { id: socket.id, sessionId: crypto.randomUUID(), name, score: 0, ready: false }); if (!result.ok) return emitError(socket, result.error);
+      }
       socket.join(code);
       if (room.state === 'playing') socket.emit('updateGameState', { gameState: publicGameState(room.game, room.gameState), scores: buildScores(room), status: 'Reconnected — game in progress' });
       if (socket.id === room.host) socket.emit('youAreHost', true);
