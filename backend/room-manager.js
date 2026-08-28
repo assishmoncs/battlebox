@@ -28,7 +28,7 @@ class RoomManager {
     const code = this.generateCode();
     const now = Date.now();
     this.rooms[code] = { game, host: player.id, players: [player], state: ROOM_STATES.LOBBY, gameState: {}, timers: {}, createdAt: now, startedAt: null };
-    return code;
+    return { code, sessionId: player.sessionId };
   }
 
   get(code) { return this.rooms[code]; }
@@ -44,10 +44,10 @@ class RoomManager {
     return { ok: true, rejoined: false };
   }
 
-  rejoin(code, name, socketId) {
+  rejoin(code, sessionId, name, socketId) {
     const room = this.get(code);
     if (!room) return { ok: false, error: 'Room not found' };
-    const player = room.players.find(p => p.name.toLowerCase() === name.toLowerCase());
+    const player = room.players.find(p => p.sessionId === sessionId && p.name.toLowerCase() === name.toLowerCase());
     if (!player) return { ok: false, error: 'Player session not found' };
     if (this.disconnectTimers[player.id]) {
       clearTimeout(this.disconnectTimers[player.id]);
