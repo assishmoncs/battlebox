@@ -1,21 +1,18 @@
 {
   "name": "battlebox-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "BattleBox real-time multiplayer gaming platform backend",
-  "main": "server.js",
+  "main": "server2.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "jest --forceExit"
+    "start": "node server2.js",
+    "dev": "node --watch server2.js",
+    "test": "jest --forceExit",
+    "test:coverage": "jest --coverage --forceExit",
+    "syntax": "node ../scripts/check-js.js"
   },
-  "keywords": [
-    "multiplayer",
-    "gaming",
-    "socket.io",
-    "express"
-  ],
+  "keywords": ["multiplayer", "gaming", "socket.io", "express"],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "dotenv": "^17.4.2",
