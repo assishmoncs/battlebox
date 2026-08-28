@@ -34,8 +34,13 @@
     if (!grid) return;
     const board = Array.isArray(gs?.board) ? gs.board : Array(42).fill(null);
     grid.innerHTML = board.map((cell, i) => `<button class="cf-cell ${cell === 'R' ? 'red' : cell === 'Y' ? 'yellow' : ''}" role="gridcell" aria-label="${cell ? `Cell ${i + 1}, occupied` : `Cell ${i + 1}, empty`}" disabled tabindex="-1"></button>`).join('');
-    const winner = gs?.winner;
-    if (Number.isInteger(winner)) grid.querySelectorAll('.cf-cell').forEach(c => c.disabled = true);
+    const winner = Number.isInteger(gs?.winner) || gs?.draw;
+    const currentPlayer = Number.isInteger(gs?.currentPlayer) ? gs.currentPlayer : 0;
+    const myIndex = gs?.playerIndex;
+    document.querySelectorAll('[data-cf-column]').forEach((btn, col) => {
+      btn.disabled = winner || (Number.isInteger(myIndex) && myIndex !== currentPlayer);
+      btn.onclick = () => window.__battleboxExtendedMove?.('connectfour', { column: col });
+    });
   }
 
   function renderHigherLower(gs) {
@@ -45,8 +50,10 @@
     if (next) next.textContent = gs?.next !== undefined ? `Next number: ${gs.next}` : 'Will the next number be higher or lower?';
     const me = Boolean(gs?.currentPlayerId && gs.currentPlayerId === window.__battleboxSocketId);
     const locked = Boolean(gs?.answered);
-    document.getElementById('hlHigher')?.setAttribute('disabled', String(!me || locked));
-    document.getElementById('hlLower')?.setAttribute('disabled', String(!me || locked));
+    const higher = document.getElementById('hlHigher');
+    const lower = document.getElementById('hlLower');
+    if (higher) higher.disabled = !me || locked;
+    if (lower) lower.disabled = !me || locked;
   }
 
   function renderOddOneOut(gs) {
