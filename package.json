@@ -1,8 +1,15 @@
 {
   "name": "battlebox",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "private": true,
   "scripts": {
-    "test": "npm --prefix backend test"
+    "start": "npm --prefix backend start",
+    "dev": "npm --prefix backend dev",
+    "test": "npm --prefix backend test",
+    "test:coverage": "npm --prefix backend test:coverage",
+    "syntax": "npm --prefix backend syntax"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
