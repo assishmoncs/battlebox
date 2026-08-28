@@ -11,106 +11,34 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
 <body>
-<nav class="nav-bar">
-  <span class="nav-brand">BattleBox</span>
-  <div><button onclick="window.location.href='lobby.html'" class="btn-secondary">Lobby</button></div>
-</nav>
-
+<nav class="nav-bar"><span class="nav-brand">BattleBox</span><div><button onclick="window.location.href='lobby.html'" class="btn-secondary">Lobby</button></div></nav>
 <main class="container">
-  <header style="text-align:center;margin-bottom:1rem;">
-    <div style="display:flex;align-items:center;justify-content:center;gap:.75rem;margin-bottom:.5rem;">
-      <span id="gameIcon" aria-hidden="true" style="font-size:2rem">🎮</span>
-      <h1 id="gameTitle" style="margin:0;font-size:clamp(1.5rem,4vw,2.2rem)">Game</h1>
-    </div>
-    <span class="game-badge" id="roomBadge">Room: ----</span>
-  </header>
-
+  <header style="text-align:center;margin-bottom:1rem"><div style="display:flex;align-items:center;justify-content:center;gap:.75rem;margin-bottom:.5rem"><span id="gameIcon" aria-hidden="true" style="font-size:2rem">🎮</span><h1 id="gameTitle" style="margin:0;font-size:clamp(1.5rem,4vw,2.2rem)">Game</h1></div><span class="game-badge" id="roomBadge">Room: ----</span></header>
   <div id="scoreboard"></div>
-  <div id="turnTimer" style="max-width:480px;margin:.5rem auto;display:none">
-    <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--text-muted);margin-bottom:.25rem">
-      <span>Time Remaining</span><span id="timerValue">30s</span>
-    </div>
-    <div class="trivia-timer"><div class="trivia-timer-bar" id="timerBar" style="width:100%"></div></div>
-  </div>
-
+  <div id="turnTimer" style="max-width:480px;margin:.5rem auto;display:none"><div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--text-muted);margin-bottom:.25rem"><span>Time Remaining</span><span id="timerValue">30s</span></div><div class="trivia-timer"><div class="trivia-timer-bar" id="timerBar" style="width:100%"></div></div></div>
   <div id="gameContainer"></div>
   <div id="status" class="waiting" role="status" aria-live="polite">Initializing battle...</div>
-
-  <div id="gameControls" style="margin-top:1.5rem;text-align:center;display:none">
-    <button onclick="requestRematch()" class="btn-primary">Rematch</button>
-    <button onclick="window.location.href='lobby.html'" class="btn-secondary">Back to Lobby</button>
-  </div>
+  <div id="gameControls" style="margin-top:1.5rem;text-align:center;display:none"><button onclick="requestRematch()" class="btn-primary">Rematch</button><button onclick="window.location.href='lobby.html'" class="btn-secondary">Back to Lobby</button></div>
 </main>
-
-<div id="resultModal" hidden style="display:none;position:fixed;inset:0;background:rgba(10,10,15,.95);z-index:10000;align-items:center;justify-content:center;flex-direction:column;padding:1.5rem;text-align:center">
-  <div id="resultIcon" style="font-size:5rem;margin-bottom:1rem">🏆</div>
-  <h2 id="resultTitle" style="font-size:clamp(2rem,8vw,3rem);margin-bottom:1rem">VICTORY!</h2>
-  <p id="resultMessage" style="color:var(--text-muted);font-size:1.1rem;margin-bottom:2rem;max-width:400px"></p>
-  <div style="display:flex;gap:1rem;flex-wrap:wrap;justify-content:center">
-    <button onclick="requestRematch()" class="btn-primary">Rematch</button>
-    <button onclick="window.location.href='lobby.html'" class="btn-secondary">Lobby</button>
-  </div>
-</div>
-
+<div id="resultModal" hidden style="display:none;position:fixed;inset:0;background:rgba(10,10,15,.95);z-index:10000;align-items:center;justify-content:center;flex-direction:column;padding:1.5rem;text-align:center"><div id="resultIcon" style="font-size:5rem;margin-bottom:1rem">🏆</div><h2 id="resultTitle" style="font-size:clamp(2rem,8vw,3rem);margin-bottom:1rem">VICTORY!</h2><p id="resultMessage" style="color:var(--text-muted);font-size:1.1rem;margin-bottom:2rem;max-width:400px"></p><div style="display:flex;gap:1rem;flex-wrap:wrap;justify-content:center"><button onclick="requestRematch()" class="btn-primary">Rematch</button><button onclick="window.location.href='lobby.html'" class="btn-secondary">Lobby</button></div></div>
 <div id="toast-container" role="status" aria-live="polite"></div>
-<script src="/socket.io/socket.io.js"></script>
-<script src="games.js"></script>
-<script src="extended-games.js"></script>
+<script src="/socket.io/socket.io.js"></script><script src="games.js"></script><script src="extended-games.js"></script>
 <script>
 'use strict';
 const socket = io({ reconnection:true, reconnectionAttempts:5, reconnectionDelay:1000, reconnectionDelayMax:5000 });
 const room = localStorage.getItem('room');
+const playerName = localStorage.getItem('playerName') || 'Anonymous';
+const sessionId = localStorage.getItem('battleboxSession') || '';
 const gameType = localStorage.getItem('game') || 'reaction';
-
-const GAME_LABELS = {
-  reaction:'Reaction Battle', tictactoe:'Tic Tac Toe', wordchain:'Word Chain', mathduel:'Math Duel',
-  rpsarena:'RPS Arena', anagram:'Anagram Sprint', numberhunt:'Number Hunt', memorymatch:'Memory Match',
-  speedtyping:'Speed Typing', colormatch:'Color Match', simonsays:'Simon Says', trivia:'Trivia Challenge',
-  connectfour:'Connect Four', higherlower:'Higher or Lower', oddoneout:'Odd One Out'
-};
-const GAME_ICONS = {
-  reaction:'⚡', tictactoe:'⭕', wordchain:'🔗', mathduel:'🔢', rpsarena:'✊', anagram:'🔤', numberhunt:'🎯',
-  memorymatch:'🧩', speedtyping:'⌨️', colormatch:'🎨', simonsays:'🎵', trivia:'❓',
-  connectfour:'🔴', higherlower:'↕️', oddoneout:'👀'
-};
-
-document.getElementById('roomBadge').textContent = `Room: ${room || '----'}`;
-document.getElementById('gameTitle').textContent = GAME_LABELS[gameType] || gameType;
-document.getElementById('gameIcon').textContent = GAME_ICONS[gameType] || '🎮';
-document.title = `${GAME_LABELS[gameType] || 'Game'} - BattleBox`;
-
-function requestRematch() {
-  if (!room) return;
-  document.getElementById('resultModal').style.display = 'none';
-  document.getElementById('resultModal').setAttribute('hidden', '');
-  socket.emit('requestRematch', room);
-}
-
-function startTimer(duration) {
-  const wrapper = document.getElementById('turnTimer');
-  const bar = document.getElementById('timerBar');
-  const value = document.getElementById('timerValue');
-  if (!wrapper || !bar || !value) return;
-  wrapper.style.display = 'block';
-  let left = duration;
-  const id = setInterval(() => {
-    left -= 0.1;
-    value.textContent = `${Math.max(0, Math.ceil(left))}s`;
-    bar.style.width = `${Math.max(0, left / duration * 100)}%`;
-    if (left <= 0) { clearInterval(id); wrapper.style.display = 'none'; }
-  }, 100);
-}
-
-socket.on('connect', () => {
-  if (!room) return window.location.href = 'index.html';
-  socket.emit('joinRoom', { room, playerName: localStorage.getItem('playerName') || 'Anonymous' });
-});
-socket.on('connect_error', () => window.showToast?.('Connection failed. Retrying…', 'error', 4000));
-socket.on('youAreHost', () => { window.__battleboxIsHost = true; });
-
-initGameUI(gameType);
-setupGameListeners();
-window.setupExtendedGameListeners?.(socket);
+const GAME_LABELS={reaction:'Reaction Battle',tictactoe:'Tic Tac Toe',wordchain:'Word Chain',mathduel:'Math Duel',rpsarena:'RPS Arena',anagram:'Anagram Sprint',numberhunt:'Number Hunt',memorymatch:'Memory Match',speedtyping:'Speed Typing',colormatch:'Color Match',simonsays:'Simon Says',trivia:'Trivia Challenge',connectfour:'Connect Four',higherlower:'Higher or Lower',oddoneout:'Odd One Out'};
+const GAME_ICONS={reaction:'⚡',tictactoe:'⭕',wordchain:'🔗',mathduel:'🔢',rpsarena:'✊',anagram:'🔤',numberhunt:'🎯',memorymatch:'🧩',speedtyping:'⌨️',colormatch:'🎨',simonsays:'🎵',trivia:'❓',connectfour:'🔴',higherlower:'↕️',oddoneout:'👀'};
+document.getElementById('roomBadge').textContent=`Room: ${room||'----'}`;document.getElementById('gameTitle').textContent=GAME_LABELS[gameType]||gameType;document.getElementById('gameIcon').textContent=GAME_ICONS[gameType]||'🎮';document.title=`${GAME_LABELS[gameType]||'Game'} - BattleBox`;
+function requestRematch(){if(!room)return;document.getElementById('resultModal').style.display='none';document.getElementById('resultModal').setAttribute('hidden','');socket.emit('requestRematch',room);}
+function startTimer(duration){const wrapper=document.getElementById('turnTimer'),bar=document.getElementById('timerBar'),value=document.getElementById('timerValue');if(!wrapper||!bar||!value)return;wrapper.style.display='block';let left=duration;const id=setInterval(()=>{left-=.1;value.textContent=`${Math.max(0,Math.ceil(left))}s`;bar.style.width=`${Math.max(0,left/duration*100)}%`;if(left<=0){clearInterval(id);wrapper.style.display='none';}},100);}
+socket.on('connect',()=>{if(!room)return window.location.href='index.html';socket.emit('joinRoom',{room,playerName,sessionId});});
+socket.on('connect_error',()=>window.showToast?.('Connection failed. Retrying…','error',4000));
+socket.on('youAreHost',()=>{window.__battleboxIsHost=true;});
+initGameUI(gameType);setupGameListeners();window.setupExtendedGameListeners?.(socket);
 </script>
 </body>
 </html>
