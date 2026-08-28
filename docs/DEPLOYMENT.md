@@ -1,88 +1,70 @@
-# Deployment Guide
+# BattleBox Deployment
 
-## Prerequisites
-- Node.js 18+ 
-- npm 9+
-- A server / VPS (Ubuntu 22.04 recommended)
-
-## Local Development
+## Local development
 
 ```bash
-git clone https://github.com/assishmoncs/battlebox.git
-cd battlebox/backend
-npm install
-cp ../.env.example ../.env   # edit as needed
-node server.js
-# → http://localhost:3000
+cd backend
+npm ci
+npm start
 ```
 
-## Production with PM2
-
-```bash
-npm install -g pm2
-cd battlebox/backend
-npm install --omit=dev
-pm2 start server.js --name battlebox
-pm2 save
-pm2 startup          # follow the printed command to enable on reboot
-```
+Open `http://localhost:3000`.
 
 ## Docker
 
-```dockerfile
-# Dockerfile (place in repo root)
-FROM node:20-alpine
-WORKDIR /app
-COPY backend/package*.json ./backend/
-RUN cd backend && npm ci --omit=dev
-COPY . .
-ENV PORT=3000
-ENV NODE_ENV=production
-EXPOSE 3000
-CMD ["node", "backend/server.js"]
+```bash
+docker compose up --build -d
 ```
+
+The image uses Node 20 Alpine, installs production dependencies only, runs as a non-root user, exposes port 3000, and checks `/health`.
+
+## Production environment
+
+Set:
+
+```text
+NODE_ENV=production
+PORT=3000
+ALLOWED_ORIGIN=https://yourdomain.com
+TRUST_PROXY=true
+```
+
+Terminate TLS at a reverse proxy/load balancer and forward WebSocket upgrades. Only the production origin should be allowed for Socket.IO.
+
+## PM2
+
+For a single-VPS deployment without Docker:
 
 ```bash
-docker build -t battlebox .
-docker run -d -p 3000:3000 \
-  -e ALLOWED_ORIGIN=https://yourdomain.com \
-  --name battlebox battlebox
+cd backend
+npm ci --omit=dev
+pm2 start server2.js --name battlebox
+pm2 save
+pm2 startup
 ```
 
-## Nginx Reverse Proxy (HTTPS)
+## Nginx WebSocket proxy
 
 ```nginx
-server {
-    listen 443 ssl http2;
-    server_name yourdomain.com;
-
-    ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        # Required for Socket.IO WebSocket upgrades
-        proxy_set_header Upgrade    $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host       $host;
-        proxy_set_header X-Real-IP  $remote_addr;
-        proxy_read_timeout 86400;
-    }
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_read_timeout 86400;
 }
 ```
 
-## Environment Variables
+## Health endpoints
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Port to listen on |
-| `ALLOWED_ORIGIN` | `http://localhost:3000` | Allowed CORS origin for Socket.IO |
-| `NODE_ENV` | `development` | `production` disables verbose logging |
-
-## Health Check
-
-```bash
-curl http://localhost:3000/health
-# → {"status":"ok","activeRooms":0,"uptime":42.1}
+```text
+GET /health
+GET /ready
+GET /api/games
 ```
+
+## Scaling
+
+The current room state is process-local. Use one app instance for the simplest deployment. Before horizontal scaling, add Redis for Socket.IO coordination and shared rate limiting/session state. Add a persistent database only for durable accounts, ratings, match history, or analytics.
