@@ -1,8 +1,9 @@
 # BattleBox 🎮
 
 [![CI](https://github.com/assishmoncs/battlebox/actions/workflows/ci.yml/badge.svg)](https://github.com/assishmoncs/battlebox/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/assishmoncs/battlebox/actions/workflows/codeql.yml/badge.svg)](https://github.com/assishmoncs/battlebox/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24%2B-brightgreen.svg)](https://nodejs.org/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg)](https://socket.io/)
 
 BattleBox is a real-time multiplayer browser gaming arena built with Node.js, Express and Socket.IO. Players create a room, invite friends with a short code, and compete in fast mini-games with server-authoritative rules and synchronized scoring.
@@ -61,18 +62,18 @@ Game Modules (`games/*.js`)
 - **Central registry:** one game definition controls metadata, limits, modules and initial state.
 - **Lifecycle safety:** all game timers are stored under `room.timers` and cleaned during rematches/disconnects.
 - **Reconnect grace:** disconnected players can reclaim their room slot during the grace period.
-- **Production-ready baseline:** Helmet, CORS restrictions, payload limits, layered rate limiting, `/health`, `/ready`, Docker and CI are included.
+- **Production-ready baseline:** Helmet, CORS restrictions, payload limits, layered rate limiting, health/readiness/metrics endpoints, Docker, CI and CodeQL are included.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/GAME_DEVELOPMENT.md](docs/GAME_DEVELOPMENT.md), and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## 🚀 Quick start
 
-Prerequisites: Node.js 20+ and npm.
+Prerequisites: Node.js 24+ and npm.
 
 ```bash
 git clone https://github.com/assishmoncs/battlebox.git
-cd battlebox/backend
-npm ci
+cd battlebox
+npm ci --prefix backend
 npm start
 ```
 
@@ -87,13 +88,12 @@ docker compose up --build
 ## 🧪 Quality checks
 
 ```bash
-cd backend
 npm test
 npm run test:coverage
 npm run syntax
 ```
 
-GitHub Actions runs dependency installation, repository-wide JavaScript syntax validation, the Jest suite, and a production dependency audit on pushes and pull requests.
+GitHub Actions validates the repository with JavaScript syntax checks, the Jest suite, production dependency auditing, and CodeQL analysis.
 
 ## 🔐 Security
 
@@ -103,27 +103,29 @@ BattleBox uses Helmet security headers, configurable Socket.IO origin restrictio
 
 ```text
 backend/
-  server.js                 legacy implementation retained for reference
+  server.js                 backwards-compatible entry point
   server2.js                modular production-oriented server
   room-manager.js           room lifecycle abstraction
   validation.js             shared payload validation
   tests/                    Jest tests
+games/
+  registry.js               single source of truth for game metadata
+  utils.js                  shared game helpers
+  *.js                      server-authoritative game rules
 frontend/
   index.html                dynamic game catalog
   lobby.html                multiplayer lobby
   game.html                 game shell
   games.js                  existing game UI implementations
   extended-games.js         new game UI implementations
-games/
-  registry.js               single source of truth for game metadata
-  utils.js                  shared game helpers
-  *.js                      server-authoritative game rules
 docs/
   ARCHITECTURE.md
   GAME_DEVELOPMENT.md
   DEPLOYMENT.md
 .github/workflows/
   ci.yml
+  codeql.yml
+  lock-refresh.yml
 Dockerfile
 docker-compose.yml
 ```
