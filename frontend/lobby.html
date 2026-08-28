@@ -16,10 +16,7 @@
 </nav>
 
 <main class="container">
-  <section class="hero" style="padding:1rem 0">
-    <h1 style="font-size:clamp(1.5rem,5vw,2rem)">BATTLE LOBBY</h1>
-  </section>
-
+  <section class="hero" style="padding:1rem 0"><h1 style="font-size:clamp(1.5rem,5vw,2rem)">BATTLE LOBBY</h1></section>
   <section class="card" aria-labelledby="roomHeading">
     <div style="display:flex;align-items:center;justify-content:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
       <h2 id="roomHeading" class="room-code-display" style="margin:0"><span id="roomCode">----</span><button class="btn-copy" onclick="copyRoomCode()" aria-label="Copy room code">📋</button></h2>
@@ -27,19 +24,15 @@
     </div>
     <p style="color:var(--text-muted);text-align:center">Share this code with friends to invite them.</p>
   </section>
-
   <div id="scoreboard"></div>
-
   <section class="player-list-container" aria-labelledby="playersHeading">
     <div class="player-list-header"><h2 id="playersHeading" style="font-size:1.1rem">Players</h2><span class="player-count" id="playerCount">0/8</span></div>
     <ul id="playerList"></ul>
   </section>
-
   <section class="chat-container" style="margin-top:1.5rem" aria-label="Lobby chat">
     <div class="chat-messages" id="chatMessages"><div class="chat-message system">Welcome to the lobby! Chat with your opponents here.</div></div>
     <div class="chat-input-row"><label for="chatInput" class="sr-only">Chat message</label><input id="chatInput" maxlength="100" placeholder="Type a message…" autocomplete="off"><button id="chatSend">Send</button></div>
   </section>
-
   <section style="margin-top:1.5rem;text-align:center">
     <button id="readyBtn" class="btn-secondary" style="display:none;width:100%;max-width:320px">READY UP</button>
     <button id="startBtn" class="btn-success btn-glow" style="display:none;width:100%;max-width:320px">START BATTLE</button>
@@ -55,74 +48,33 @@
 const socket = io({ reconnection:true, reconnectionAttempts:5, reconnectionDelay:1000, reconnectionDelayMax:5000 });
 const room = (localStorage.getItem('room') || '').toUpperCase();
 const playerName = localStorage.getItem('playerName') || 'Anonymous';
+const sessionId = localStorage.getItem('battleboxSession') || '';
 let gameType = localStorage.getItem('game') || 'reaction';
 let hostId = null;
 let hostName = null;
 let players = [];
 let ready = false;
 let gameCatalog = [];
-
 const $ = id => document.getElementById(id);
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function toast(msg, type='info') {
-  const container = $('toast-container'); if (!container) return;
-  const node = document.createElement('div'); node.className = `toast toast-${type}`; node.textContent = msg; container.appendChild(node);
-  setTimeout(() => node.remove(), 3000);
-}
-function leaveRoom() { localStorage.removeItem('room'); localStorage.removeItem('game'); window.location.href='index.html'; }
-function copyRoomCode() { navigator.clipboard?.writeText(room).then(() => toast('Room code copied!', 'success')).catch(() => toast(`Code: ${room}`)); }
-function setGameBadge() {
-  const g = gameCatalog.find(x => x.id === gameType);
-  $('gameTypeBadge').textContent = g ? `${g.icon} ${g.name}` : `🎮 ${gameType}`;
-}
-function renderPlayers() {
-  $('playerCount').textContent = `${players.length}/8`;
-  $('playerList').innerHTML = players.map(p => {
-    const isMe = p.name === playerName;
-    const isHost = p.name === hostName;
-    return `<li><div class="player-avatar ${isHost?'host':''}">${escapeHtml((p.name||'?').slice(0,2).toUpperCase())}</div><div class="player-info"><div class="player-name">${escapeHtml(p.name)}${isMe?' <span style="color:var(--primary)">(You)</span>':''}</div><div class="player-score-label">Score: ${Number(p.score)||0}</div></div><div class="player-status">${isHost?'<span class="player-badge">HOST</span>':(p.ready?'Ready':'Not Ready')}</div></li>`;
-  }).join('');
-  updateScoreboard();
-  updateControls();
-}
-function updateScoreboard() {
-  const scores = players.map(p => ({name:p.name,score:Number(p.score)||0})).sort((a,b)=>b.score-a.score);
-  if (!scores.length) { $('scoreboard').innerHTML=''; return; }
-  $('scoreboard').innerHTML = `<div class="scoreboard-title">Scoreboard</div>${scores.map((p,i)=>`<div class="score-item ${i===0?'leader':''}"><span class="score-rank">${['🥇','🥈','🥉'][i]||(i+1)}</span><span class="score-name">${escapeHtml(p.name)}</span><span class="score-value">${p.score}</span></div>`).join('')}`;
-}
-function updateControls() {
-  const isHost = socket.id && ((hostId && socket.id === hostId) || (hostName && playerName === hostName));
-  $('startBtn').style.display = isHost ? 'inline-flex' : 'none';
-  $('minPlayersMsg').style.display = isHost && players.length < 2 ? 'block' : 'none';
-  $('startBtn').disabled = players.length < 2;
-  $('readyBtn').style.display = isHost ? 'none' : 'inline-flex';
-  $('waitMsg').style.display = isHost ? 'none' : 'block';
-}
-function toggleReady() {
-  ready = !ready;
-  $('readyBtn').textContent = ready ? 'READY ✓' : 'READY UP';
-  $('readyBtn').className = ready ? 'btn-success' : 'btn-secondary';
-  socket.emit('playerReady', { room, ready });
-}
+function toast(msg, type='info') { const container=$('toast-container'); if(!container)return; const node=document.createElement('div'); node.className=`toast toast-${type}`; node.textContent=msg; container.appendChild(node); setTimeout(()=>node.remove(),3000); }
+function leaveRoom() { localStorage.removeItem('room'); localStorage.removeItem('game'); localStorage.removeItem('battleboxSession'); socket.disconnect(); window.location.href='index.html'; }
+function copyRoomCode() { navigator.clipboard?.writeText(room).then(()=>toast('Room code copied!','success')).catch(()=>toast(`Code: ${room}`)); }
+function setGameBadge() { const g=gameCatalog.find(x=>x.id===gameType); $('gameTypeBadge').textContent=g?`${g.icon} ${g.name}`:`🎮 ${gameType}`; }
+function renderPlayers() { $('playerCount').textContent=`${players.length}/8`; $('playerList').innerHTML=players.map(p=>{const isMe=p.name===playerName;const isHost=p.name===hostName;return `<li><div class="player-avatar ${isHost?'host':''}">${escapeHtml((p.name||'?').slice(0,2).toUpperCase())}</div><div class="player-info"><div class="player-name">${escapeHtml(p.name)}${isMe?' <span style="color:var(--primary)">(You)</span>':''}</div><div class="player-score-label">Score: ${Number(p.score)||0}</div></div><div class="player-status">${isHost?'<span class="player-badge">HOST</span>':(p.ready?'Ready':'Not Ready')}</div></li>`;}).join(''); updateScoreboard(); updateControls(); }
+function updateScoreboard() { const scores=players.map(p=>({name:p.name,score:Number(p.score)||0})).sort((a,b)=>b.score-a.score); if(!scores.length){$('scoreboard').innerHTML='';return;} $('scoreboard').innerHTML=`<div class="scoreboard-title">Scoreboard</div>${scores.map((p,i)=>`<div class="score-item ${i===0?'leader':''}"><span class="score-rank">${['🥇','🥈','🥉'][i]||(i+1)}</span><span class="score-name">${escapeHtml(p.name)}</span><span class="score-value">${p.score}</span></div>`).join('')}`; }
+function updateControls() { const isHost=socket.id&&((hostId&&socket.id===hostId)||(hostName&&playerName===hostName)); $('startBtn').style.display=isHost?'inline-flex':'none'; $('minPlayersMsg').style.display=isHost&&players.length<2?'block':'none'; $('startBtn').disabled=players.length<2; $('readyBtn').style.display=isHost?'none':'inline-flex'; $('waitMsg').style.display=isHost?'none':'block'; }
+function toggleReady() { ready=!ready; $('readyBtn').textContent=ready?'READY ✓':'READY UP'; $('readyBtn').className=ready?'btn-success':'btn-secondary'; socket.emit('playerReady',{room,ready}); }
 function sendChat() { const input=$('chatInput'); const message=input.value.trim(); if(!message)return; socket.emit('chatMessage',{room,message}); input.value=''; input.focus(); }
-$('readyBtn').addEventListener('click', toggleReady);
-$('chatSend').addEventListener('click', sendChat);
-$('chatInput').addEventListener('keydown', e => { if(e.key==='Enter') sendChat(); });
-$('startBtn').addEventListener('click', () => { if(players.length<2) return; socket.emit('startGame',room); });
-
-(async function init(){
-  $('roomCode').textContent = room || '----';
-  try { const r=await fetch('/api/games'); if(r.ok){ const data=await r.json(); gameCatalog=data.games||[]; setGameBadge(); } } catch(e) { console.warn('Game catalog unavailable',e); }
-  if (!room) return leaveRoom();
-})();
-
-socket.on('connect', () => socket.emit('joinRoom',{room,playerName}));
-socket.on('roomInfo', info => { gameType=info.game||gameType; localStorage.setItem('game',gameType); hostId=info.hostId||null; hostName=info.hostName||null; setGameBadge(); updateControls(); });
-socket.on('updatePlayers', list => { players=Array.isArray(list)?list:[]; renderPlayers(); });
-socket.on('chatMessage', ({playerName:name,message}) => { const node=document.createElement('div'); node.className='chat-message'; node.innerHTML=`<strong style="color:var(--primary)">${escapeHtml(name)}:</strong> ${escapeHtml(message)}`; $('chatMessages').appendChild(node); $('chatMessages').scrollTop=$('chatMessages').scrollHeight; });
-socket.on('gameStarted', () => { window.location.href='game.html'; });
-socket.on('error', msg => { toast(msg,'error'); if(msg==='Room not found') setTimeout(()=>window.location.href='index.html',1500); });
-socket.on('disconnect', () => toast('Connection lost. Reconnecting…','warning'));
+$('readyBtn').addEventListener('click',toggleReady); $('chatSend').addEventListener('click',sendChat); $('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter')sendChat();}); $('startBtn').addEventListener('click',()=>{if(players.length<2)return;socket.emit('startGame',room);});
+(async function init(){ $('roomCode').textContent=room||'----'; try{const r=await fetch('/api/games');if(r.ok){const data=await r.json();gameCatalog=data.games||[];setGameBadge();}}catch(e){console.warn('Game catalog unavailable',e);} if(!room)return leaveRoom(); })();
+socket.on('connect',()=>socket.emit('joinRoom',{room,playerName,sessionId}));
+socket.on('roomInfo',info=>{gameType=info.game||gameType;localStorage.setItem('game',gameType);hostId=info.hostId||null;hostName=info.hostName||null;setGameBadge();updateControls();});
+socket.on('updatePlayers',list=>{players=Array.isArray(list)?list:[];renderPlayers();});
+socket.on('chatMessage',({playerName:name,message})=>{const node=document.createElement('div');node.className='chat-message';node.innerHTML=`<strong style="color:var(--primary)">${escapeHtml(name)}:</strong> ${escapeHtml(message)}`;$('chatMessages').appendChild(node);$('chatMessages').scrollTop=$('chatMessages').scrollHeight;});
+socket.on('gameStarted',()=>{window.location.href='game.html';});
+socket.on('error',msg=>{toast(msg,'error');if(msg==='Room not found')setTimeout(()=>window.location.href='index.html',1500);});
+socket.on('disconnect',reason=>{if(reason!=='io client disconnect')toast('Connection lost. Reconnecting…','warning');});
 </script>
 </body>
 </html>
