@@ -13,13 +13,14 @@ describe('generateRoomCode (SEC-03)', () => {
   it('room codes use unambiguous characters only', () => {
     // Allowed charset per server.js: ABCDEFGHJKLMNPQRSTUVWXYZ23456789
     const ALLOWED = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/;
-    // Simulate 100 codes using the same crypto logic as server.js
+    // Simulate 100 codes using the same unbiased crypto logic as room-manager.js
     const crypto = require('crypto');
     const chars  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     for (let t = 0; t < 100; t++) {
       let code = '';
-      const bytes = crypto.randomBytes(4);
-      for (const b of bytes) code += chars[b % chars.length];
+      for (let i = 0; i < 4; i++) {
+        code += chars[crypto.randomInt(0, chars.length)];
+      }
       expect(code).toMatch(ALLOWED);
       expect(code).toHaveLength(4);
     }
@@ -31,8 +32,9 @@ describe('generateRoomCode (SEC-03)', () => {
     const codes  = new Set();
     for (let t = 0; t < 500; t++) {
       let code = '';
-      const bytes = crypto.randomBytes(4);
-      for (const b of bytes) code += chars[b % chars.length];
+      for (let i = 0; i < 4; i++) {
+        code += chars[crypto.randomInt(0, chars.length)];
+      }
       codes.add(code);
     }
     // With 32^4 = ~1M possibilities and 500 samples, collision rate should be tiny
