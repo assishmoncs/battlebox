@@ -16,10 +16,12 @@ class RoomManager {
   }
 
   generateCode() {
-    let code;
+    let code = '';
     do {
-      const bytes = crypto.randomBytes(4);
-      code = [...bytes].map(b => ROOM_CODE_CHARS[b % ROOM_CODE_CHARS.length]).join('');
+      code = '';
+      for (let i = 0; i < 4; i++) {
+        code += ROOM_CODE_CHARS[crypto.randomInt(0, ROOM_CODE_CHARS.length)];
+      }
     } while (this.rooms[code]);
     return code;
   }
